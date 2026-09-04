@@ -2,6 +2,7 @@ import { state } from './state.ts';
 import { ARMOR_SLOTS, BLOCKING_TILES, EQUIPMENT_SLOTS, SCALING_COEFFS, ABILITY_SLOTS, UNARMED_ATTACK_ID, WEAPON_ATTACK_ID, PLAYER_BASE_ACT_TICKS, TICK_MS, actTicks, resolveHotbar, xpForNext } from '../../shared/constants.ts';
 import { buildSpriteColorMap, buildTileColorMap, pickSeamTile, pickTileVariant } from '../../shared/tileset.ts';
 import { renderAbilityIcon } from '../../shared/abilityIcon.ts';
+import { rarityColor } from '../../shared/itemVisuals.ts';
 import { getPlayerSprite } from './playerSprite.ts';
 import { snapDamped, stepDamped, type Damped } from '../../shared/motion.ts';
 import type { IconSpec } from '../../shared/abilityIcon.ts';
@@ -132,16 +133,6 @@ for (const stat of ['strength', 'dexterity', 'intelligence', 'constitution'] as 
   document.getElementById(`alloc-${stat}`)!.addEventListener('click', () => state.sendAllocate?.(stat));
 }
 
-const RARITY_COLORS: Record<string, string> = {
-  common: '#cccccc',
-  uncommon: '#5acc5a',
-  rare: '#5a9aff',
-  legendary: '#ff8c2a',
-};
-
-function rarityColor(rarity?: string): string {
-  return RARITY_COLORS[rarity ?? 'common'] ?? RARITY_COLORS['common']!;
-}
 
 function stackTooltip(stack: InventoryStack): string {
   const eq = stack.item?.components?.equipment;
@@ -3793,7 +3784,11 @@ function drawEntity(px: number, py: number, color: string, scale?: number, sprit
 }
 
 function drawPlayerSprite(px: number, py: number, e: EntitySnapshot): void {
-  const img = getPlayerSprite(e.klass, e.color);
+  // Snapshots ship the player's whole components object (world.ts
+  // entityToSnapshot), so the equipped gear the paper-doll needs is already
+  // here — no extra wire field. EntitySnapshot types it `unknown`.
+  const equipment = (e.components as PlayerEntity['components'] | undefined)?.equipment;
+  const img = getPlayerSprite(e.klass, e.color, equipment);
   const size = Math.round(TILE * 1.2);
   const margin = Math.floor((TILE - size) / 2);
   ctx.imageSmoothingEnabled = false;
