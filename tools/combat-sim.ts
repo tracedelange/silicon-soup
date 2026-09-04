@@ -1,71 +1,22 @@
-// TTK combat sim — tunes mob HP / unarmed damage against the TTK anchor in
+// TTK balance table — tunes mob HP / unarmed damage against the TTK anchor in
 // docs/plan-combat-retune.md. Run: npx tsx tools/combat-sim.ts
 //
-// Swings are driven straight through combat's damage core, so this uses the
-// actual rollDamage / totalDefense / dodge code paths — no formula duplication.
-// Reach is deliberately not modelled: the sim is a damage-per-swing harness, and
-// who can reach whom is the ability executor's business (see attackAbilityFor).
+// The harness itself lives in tools/lib/combat-sim.ts, shared with the zone
+// editor's mob panel so a template tuned in the GUI and a template checked here
+// report the same numbers.
 
-import { applyResolvedDamage, rollDamage } from '../server/game/systems/combat.ts';
+import { avgHitsToKill, gearUp, makePlayer } from './lib/combat-sim.ts';
 import { makeMob } from '../server/game/entities.ts';
-import type { MobRole, PlayerEntity, MobTemplate, WorldDefs } from '../shared/types.ts';
+import type { MobRole, PlayerEntity, MobTemplate } from '../shared/types.ts';
 
-// The sim's combatants are unarmed, so nothing here ever reads an ItemBase —
-// rollDamage only consults defs to fill in for a weapon that carries no roll.
-const NO_DEFS = { itemBases: {} } as WorldDefs;
-
-/** One unmitigated swing from att into tgt, through the real mitigation path. */
-function swing(att: Parameters<typeof rollDamage>[0], tgt: Parameters<typeof rollDamage>[0]): void {
-  applyResolvedDamage(att, tgt, rollDamage(att, NO_DEFS));
-}
-
-// Canonical unarmed fighter build. Starts STR 8 / CON 6 (see CLASSES), gains
-// 1 point per level; we spend ~60% into STR, the rest into CON.
+// Canonical unarmed fighter build (see makePlayer).
 function makeFighter(level: number): PlayerEntity {
-  const pts = level - 1;
-  const strAdds = Math.round(pts * 0.6);
-  const conAdds = pts - strAdds;
-  const strength = 8 + strAdds;
-  const constitution = 6 + conAdds;
-  const maxHp = 100 + (constitution - 5) * 10;
-  return {
-    id: 'sim-player',
-    type: 'player',
-    name: 'Sim',
-    klass: 'fighter',
-    position: { zone: 'sim', x: 0, y: 0 },
-    facing: 'south',
-    nextActTick: 0,
-    nextRegenTick: 0,
-    components: {
-      health: { current: maxHp, max: maxHp },
-      inventory: { slots: [] },
-      equipment: {} as PlayerEntity['components']['equipment'],
-      wallet: { gold: 0 },
-      stats: { strength, dexterity: 4, intelligence: 4, constitution, speed: 1.0, damage: [3, 6] },
-      progress: { level, xp: 0, unspent_points: 0 },
-      quests: { active: [], completed: [] },
-      knownAbilities: {},
-    },
-  } as PlayerEntity;
+  return makePlayer('fighter', level);
 }
 
 // Geared fighter: iron sword (dmg [4,7], STR:D/DEX:E) + full iron set (~20 def).
 function makeGearedFighter(level: number): PlayerEntity {
-  const p = makeFighter(level);
-  const eq = p.components.equipment as Record<string, unknown>;
-  const armorRoll = (lo: number, hi: number) => ({
-    item: { components: { equipment: { rolled: { defense: [lo, hi] } } } },
-  });
-  eq.mainhand = {
-    item: { components: { equipment: { rolled: { damage: [4, 7], scaling: { strength: 'D', dexterity: 'E' } } } } },
-  };
-  eq.helmet = armorRoll(3, 5);
-  eq.chest = armorRoll(4, 7);
-  eq.gloves = armorRoll(2, 4);
-  eq.leggings = armorRoll(3, 5);
-  eq.boots = armorRoll(2, 3);
-  return p;
+  return gearUp(makePlayer('fighter', level));
 }
 
 function makeSimMob(level: number, role: MobRole): ReturnType<typeof makeMob> {
@@ -75,22 +26,6 @@ function makeSimMob(level: number, role: MobRole): ReturnType<typeof makeMob> {
   };
   const mob = makeMob(template, { zone: 'sim', x: 1, y: 0 });
   return mob;
-}
-
-// Average hits-to-kill: attacker swings at target until target dies.
-function avgHitsToKill(makeAtt: () => any, makeTgt: () => any, runs = 4000): number {
-  let total = 0;
-  for (let i = 0; i < runs; i++) {
-    const att = makeAtt();
-    const tgt = makeTgt();
-    let hits = 0;
-    while ((tgt.components.health.current ?? 0) > 0 && hits < 1000) {
-      swing(att, tgt);
-      hits++;
-    }
-    total += hits;
-  }
-  return total / runs;
 }
 
 const ROLES: MobRole[] = ['pest', 'soldier', 'ranged', 'support', 'tank'];

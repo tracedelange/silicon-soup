@@ -169,6 +169,31 @@
   .sprite-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid #0006; flex-shrink: 0; }
   .row-list .ditem { display: flex; gap: 4px; margin-bottom: 3px; }
   .row-list .ditem input { flex: 1; }
+
+  /* ── Mob editor ── */
+  .mgroup { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 6px; }
+  .mgroup:first-child { border-top: 0; margin-top: 0; }
+  .mgroup > h4 { margin: 0 0 4px; font-size: 10px; text-transform: uppercase;
+                 letter-spacing: .08em; color: var(--text-dim); font-weight: 600; }
+  .mgroup .hint { font-size: 10px; color: var(--text-dim); margin: 2px 0 5px; line-height: 1.45; }
+  .chips { display: flex; flex-wrap: wrap; gap: 3px; }
+  .chip { border: 1px solid var(--line); border-radius: 9px; padding: 1px 7px;
+          font-size: 10px; cursor: pointer; color: var(--text-dim); user-select: none; }
+  .chip.on { border-color: var(--accent); color: var(--accent); background: #1e1e2e; }
+  .statgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+  .statgrid label { font-size: 10px; color: var(--text-dim); display: block; }
+  .mini-btn { font-size: 10px; color: var(--accent); cursor: pointer; float: right;
+              border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; }
+  .ability-row { display: flex; gap: 3px; align-items: center; margin-bottom: 2px; }
+  .ability-row select { flex: 1; min-width: 0; }
+  .ability-row input { width: 46px; flex: none; }
+  .ability-meta { font-size: 9px; color: var(--text-dim); margin: 0 0 4px 2px; }
+  #mob-sim table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  #mob-sim td, #mob-sim th { padding: 1px 3px; text-align: right; }
+  #mob-sim th:first-child, #mob-sim td:first-child { text-align: left; color: var(--text-dim); }
+  #mob-sim .win { color: #4ade80; }
+  #mob-sim .lose { color: #f87171; }
+  #mob-sim .derived { color: var(--text-dim); font-size: 10px; margin-bottom: 5px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -300,22 +325,15 @@
       </div>
 
       <div class="rsec mob-only" id="mob-form">
-        <h3>Mob</h3>
-        <div class="mob-row"><span class="lbl-w">id</span><input type="text" id="mob-id" placeholder="e.g. goblin_grunt"></div>
-        <div class="mob-row"><span class="lbl-w">name</span><input type="text" id="mob-name" placeholder="Goblin Grunt"></div>
-        <div class="mob-row"><span class="lbl-w">sprite</span><span id="mob-sprite-dot" class="sprite-dot"></span><select id="mob-sprite"></select></div>
-        <div class="mob-row"><span class="lbl-w">role</span><select id="mob-role"></select></div>
-        <div class="mob-row"><span class="lbl-w">behavior</span><select id="mob-behavior"></select></div>
-        <div class="mob-row"><span class="lbl-w">level</span><input type="number" id="mob-level" min="1" value="1"></div>
-        <div class="mob-row"><span class="lbl-w">speed</span><input type="number" id="mob-speed" step="0.1" value="0"></div>
-        <div class="mob-row"><span class="lbl-w">aggro</span><input type="number" id="mob-aggro" value="0"></div>
-        <div class="mob-row"><span class="lbl-w">xp (opt)</span><input type="number" id="mob-xp" placeholder="auto"></div>
-        <h3 style="margin-top:8px;">Dialogue (one per line)</h3>
-        <textarea id="mob-dialogue" style="height:60px;resize:vertical;" placeholder="..."></textarea>
-        <h3 style="margin-top:8px;">Loot table</h3>
-        <div id="mob-loot" class="row-list"></div>
-        <button class="btn secondary sm" id="mob-loot-add" style="margin-top:3px;">+ loot</button>
-        <div style="font-size:10px;color:var(--text-dim);margin-top:8px;">Advanced fields (stats, abilities, shop…) editable in the JSON pane below.</div>
+        <!-- Built from MOB_FIELDS at runtime: 40-odd controls hand-written as
+             markup would be unreadable, and the spec doubles as the list of what
+             MobTemplate actually carries. -->
+        <div id="mob-groups"></div>
+      </div>
+
+      <div class="rsec mob-only" id="mob-sim-section">
+        <h3>Combat profile <span id="mob-sim-run" class="mini-btn">run</span></h3>
+        <div id="mob-sim"></div>
       </div>
 
       <div class="rsec zone-only" id="features-section">
@@ -1713,22 +1731,17 @@ async function enterMobMode() {
   S.mob.meta = meta.sprites ? meta : { roles: [], behaviors: [], sprites: {} };
   S.mob.mobs = Array.isArray(mobs) ? mobs : [];
   $('eject-btn').style.display = 'none'; $('warn-badge').style.display = 'none';
-  populateMobSelect(); populateMobEnums();
+  populateMobSelect();
   if (!S.mob.def) mobBlank();
   mobSyncForm(); mobSyncText(); drawMob();
 }
 function mobBlank() {
-  S.mob.def = { id: '', name: '', sprite: Object.keys(S.mob.meta.sprites)[0] || 'goblin_01', level: 1, role: 'skirmisher', behavior: 'wander', speed: 2, aggro_range: 5 };
+  S.mob.def = { id: '', name: '', sprite: Object.keys(S.mob.meta.sprites)[0] || 'goblin_01', level: 1, role: 'pest', behavior: 'wander', speed: 1, aggro_range: 5 };
 }
 function populateMobSelect() {
   const sel = $('mob-select'); sel.innerHTML = '<option value="">— new / select mob —</option>';
   for (const m of S.mob.mobs) { const o = document.createElement('option'); o.value = m.id; o.textContent = `${m.name} (${m.role} L${m.level})`; sel.appendChild(o); }
   if (S.mob.def?.id) sel.value = S.mob.def.id;
-}
-function populateMobEnums() {
-  const sp = $('mob-sprite'); sp.innerHTML = Object.keys(S.mob.meta.sprites).sort().map(s => `<option value="${s}">${s}</option>`).join('');
-  $('mob-role').innerHTML = S.mob.meta.roles.map(r => `<option value="${r}">${r}</option>`).join('');
-  $('mob-behavior').innerHTML = S.mob.meta.behaviors.map(b => `<option value="${b}">${b}</option>`).join('');
 }
 $('mob-select').addEventListener('change', e => { if (e.target.value) loadMob(e.target.value); else { mobBlank(); setDirty(false); mobSyncForm(); mobSyncText(); drawMob(); } });
 async function loadMob(id) {
@@ -1738,52 +1751,361 @@ async function loadMob(id) {
   $('json-path').textContent = data.path || ''; setStatus(`Loaded mob ${id}`, 'ok');
 }
 
-// Form → def (and back). The def is the single source of truth; the JSON pane
-// mirrors it for advanced fields (stats, abilities, shop…).
-function mobField(id, key, parse) {
-  $(id).addEventListener('input', () => {
-    const v = parse ? parse($(id).value) : $(id).value;
-    if (v === '' || v === undefined || (typeof v === 'number' && isNaN(v))) delete S.mob.def[key]; else S.mob.def[key] = v;
-    mobDirty();
-    if (key === 'sprite') updateSpriteDot();
-  });
-}
-mobField('mob-id', 'id'); mobField('mob-name', 'name'); mobField('mob-sprite', 'sprite');
-mobField('mob-role', 'role'); mobField('mob-behavior', 'behavior');
-mobField('mob-level', 'level', Number); mobField('mob-speed', 'speed', Number);
-mobField('mob-aggro', 'aggro_range', Number); mobField('mob-xp', 'xp', v => v === '' ? '' : Number(v));
-$('mob-dialogue').addEventListener('input', () => {
-  const lines = $('mob-dialogue').value.split('\n').map(l => l.trim()).filter(Boolean);
-  if (lines.length) S.mob.def.dialogue = lines; else delete S.mob.def.dialogue;
-  mobDirty();
-});
-$('mob-loot-add').addEventListener('click', () => { if (!S.mob.def) return; S.mob.def.loot_table = [...(S.mob.def.loot_table || []), { item: '', chance: 0.1 }]; mobSyncForm(); mobDirty(); });
+// ── The form is generated from a spec ───────────────────────────────────────
+// MobTemplate carries ~35 fields; hand-writing rows for each is unreadable and
+// drifts the moment the type changes. This spec IS the coverage claim, grouped
+// the way an author thinks about a mob rather than the way the interface is
+// declared. `opt: true` means an unset field stays unset — writing a default
+// into every template would bury the handful of values that were chosen.
+const MOB_FIELDS = [
+  { group: 'Identity', fields: [
+    { key: 'id', label: 'id', type: 'text', placeholder: 'goblin_grunt' },
+    { key: 'name', label: 'name', type: 'text', placeholder: 'Goblin Grunt' },
+    { key: 'sprite', label: 'sprite', type: 'select', from: 'spriteIds', swatch: true },
+    { key: 'role', label: 'role', type: 'select', from: 'roles' },
+    { key: 'behavior', label: 'behavior', type: 'select', from: 'behaviors' },
+    { key: 'level', label: 'level', type: 'number', min: 1 },
+    { key: 'draw_scale', label: 'draw scale', type: 'number', step: 0.05, opt: true, placeholder: '0.75' },
+  ] },
+  { group: 'Combat', hint: 'hp and armor override the role/level curve outright. Leave them blank for a mob that should scale with its role; set them for one that should not.', fields: [
+    { key: 'hp', label: 'hp', type: 'number', opt: true, placeholder: 'derived' },
+    { key: 'armor', label: 'armor', type: 'number', opt: true, placeholder: 'from CON' },
+    { key: 'speed', label: 'speed', type: 'number', step: 0.1 },
+    { key: 'aggro_range', label: 'aggro range', type: 'number' },
+    { key: 'preferred_range', label: 'preferred range', type: 'number', opt: true, placeholder: 'melee' },
+    { key: 'leash_radius', label: 'leash radius', type: 'number', opt: true, placeholder: 'from aggro' },
+    { key: 'respawn_seconds', label: 'respawn s', type: 'number', opt: true, placeholder: '120' },
+    { key: 'stats', label: 'stat overrides', type: 'stats' },
+    { key: 'resistances', label: 'resistances', type: 'resist' },
+  ] },
+  { group: 'Ability kit', hint: 'Weight is strict PRIORITY, not a roll: the highest-weight ready ability fires. A low weight on a long-cooldown signature move starves it to never firing. hp_below gates an entry to a health fraction (0.3 = a desperation move).', fields: [
+    { key: 'abilities', label: '', type: 'abilities' },
+  ] },
+  { group: 'Wild spawning', hint: 'Both filters apply only to the procedural wilderness roll. Hand-authored zone and site spawns ignore them and place this template wherever they say.', fields: [
+    { key: 'level_range', label: 'level range', type: 'range2', opt: true },
+    { key: 'biomes', label: 'biomes', type: 'chips', from: 'biomes' },
+    { key: 'pack', label: 'pack', type: 'pack' },
+  ] },
+  { group: 'Loot', hint: 'affinity and brand are soft biases on the universal procedural drop, never filters — rarity and item level still govern.', fields: [
+    { key: 'xp', label: 'xp', type: 'number', opt: true, placeholder: 'derived' },
+    { key: 'loot_affinity', label: 'affinity', type: 'chips', from: 'affinities' },
+    { key: 'loot_brand', label: 'brand', type: 'chips', from: 'brands' },
+    { key: 'loot_table', label: '', type: 'loot' },
+  ] },
+  { group: 'Dialogue & flags', hint: 'shop, featured_stock and trainer are merchant configuration rather than mob design — they stay in the JSON pane below.', fields: [
+    { key: 'dialogue', label: '', type: 'lines', placeholder: 'One line per row…' },
+    { key: 'unique', label: 'unique (one per zone)', type: 'bool' },
+    { key: 'friendly', label: 'friendly (click = talk)', type: 'bool' },
+    { key: 'fixture', label: 'fixture (scenery)', type: 'bool' },
+    { key: 'inert', label: 'inert (absorbs, never fights back)', type: 'bool' },
+    { key: 'sign', label: 'sign (click = read modal)', type: 'bool' },
+    { key: 'board_id', label: 'board id', type: 'text', opt: true },
+    { key: 'light_radius', label: 'light radius', type: 'number', opt: true },
+  ] },
+];
 
-function renderLootRows() {
-  const wrap = $('mob-loot'); wrap.innerHTML = '';
-  (S.mob.def?.loot_table || []).forEach((lt, i) => {
-    const d = document.createElement('div'); d.className = 'ditem';
-    d.innerHTML = `<input type="text" placeholder="item id" value="${esc(lt.item || '')}"><input type="number" step="0.05" min="0" max="1" style="width:60px;flex:none;" value="${lt.chance ?? 0.1}"><button class="del-btn">✕</button>`;
-    const [itemI, chanceI] = d.querySelectorAll('input');
-    itemI.addEventListener('input', () => { S.mob.def.loot_table[i].item = itemI.value; mobDirtyText(); });
-    chanceI.addEventListener('input', () => { S.mob.def.loot_table[i].chance = Number(chanceI.value); mobDirtyText(); });
-    d.querySelector('.del-btn').addEventListener('click', () => { S.mob.def.loot_table.splice(i, 1); if (!S.mob.def.loot_table.length) delete S.mob.def.loot_table; mobSyncForm(); mobDirty(); });
-    wrap.appendChild(d);
-  });
-}
-function mobSyncForm() {
+const MOB_VOCAB = () => ({
+  roles: S.mob.meta.roles ?? [],
+  behaviors: S.mob.meta.behaviors ?? [],
+  spriteIds: Object.keys(S.mob.meta.sprites ?? {}).sort(),
+  biomes: S.mob.meta.biomes ?? [],
+  brands: S.mob.meta.brands ?? [],
+  affinities: S.mob.meta.affinities ?? [],
+});
+
+// Setting a field to blank DELETES it, so an author can always get back to
+// "derived" rather than being stuck with whatever number the form defaulted to.
+function mobSet(key, value) {
   const m = S.mob.def; if (!m) return;
-  $('mob-id').value = m.id || ''; $('mob-name').value = m.name || '';
-  $('mob-sprite').value = m.sprite || ''; $('mob-role').value = m.role || 'skirmisher';
-  $('mob-behavior').value = m.behavior || 'idle'; $('mob-level').value = m.level ?? 1;
-  $('mob-speed').value = m.speed ?? 0; $('mob-aggro').value = m.aggro_range ?? 0;
-  $('mob-xp').value = m.xp ?? ''; $('mob-dialogue').value = (m.dialogue || []).join('\n');
-  updateSpriteDot(); renderLootRows();
+  const empty = value === '' || value === undefined || value === null
+    || (typeof value === 'number' && isNaN(value))
+    || (Array.isArray(value) && value.length === 0)
+    || (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)
+    || value === false;
+  if (empty) delete m[key]; else m[key] = value;
+  mobDirty();
+  if (key === 'sprite') updateSpriteDot();
 }
-function updateSpriteDot() { $('mob-sprite-dot').style.background = S.mob.meta.sprites[S.mob.def?.sprite] || '#666'; }
+
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+
+function mobRenderForm() {
+  const wrap = $('mob-groups');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const m = S.mob.def; if (!m) return;
+  const vocab = MOB_VOCAB();
+  for (const g of MOB_FIELDS) {
+    const box = el('div', 'mgroup');
+    box.appendChild(el('h4', null, esc(g.group)));
+    if (g.hint) box.appendChild(el('div', 'hint', esc(g.hint)));
+    for (const f of g.fields) box.appendChild(mobRenderField(f, m, vocab));
+    wrap.appendChild(box);
+  }
+  updateSpriteDot();
+}
+
+function mobRenderField(f, m, vocab) {
+  const v = m[f.key];
+  switch (f.type) {
+    case 'text': case 'number': {
+      const row = el('div', 'mob-row', `<span class="lbl-w">${esc(f.label)}</span>`);
+      const i = document.createElement('input');
+      i.type = f.type;
+      if (f.step) i.step = f.step;
+      if (f.min !== undefined) i.min = f.min;
+      i.placeholder = f.placeholder ?? '';
+      i.value = v ?? '';
+      i.addEventListener('input', () => mobSet(f.key, f.type === 'number' ? (i.value === '' ? '' : Number(i.value)) : i.value));
+      row.appendChild(i);
+      return row;
+    }
+    case 'select': {
+      const row = el('div', 'mob-row', `<span class="lbl-w">${esc(f.label)}</span>`);
+      if (f.swatch) { const d = el('span', 'sprite-dot'); d.id = 'mob-sprite-dot'; row.appendChild(d); }
+      const sel = document.createElement('select');
+      sel.innerHTML = (vocab[f.from] ?? []).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+      sel.value = v ?? '';
+      sel.addEventListener('change', () => mobSet(f.key, sel.value));
+      row.appendChild(sel);
+      return row;
+    }
+    case 'bool': {
+      const row = el('div', 'mob-row');
+      const i = document.createElement('input');
+      i.type = 'checkbox'; i.checked = !!v; i.style.flex = 'none'; i.style.width = 'auto';
+      i.addEventListener('change', () => mobSet(f.key, i.checked));
+      row.appendChild(i);
+      row.appendChild(el('span', null, esc(f.label)));
+      return row;
+    }
+    case 'range2': {
+      const row = el('div', 'mob-row', `<span class="lbl-w">${esc(f.label)}</span>`);
+      const lo = document.createElement('input'), hi = document.createElement('input');
+      lo.type = hi.type = 'number';
+      lo.placeholder = 'lo'; hi.placeholder = 'hi';
+      lo.value = v?.[0] ?? ''; hi.value = v?.[1] ?? '';
+      const push = () => mobSet(f.key, lo.value === '' && hi.value === '' ? '' : [Number(lo.value || 0), Number(hi.value || 0)]);
+      lo.addEventListener('input', push); hi.addEventListener('input', push);
+      row.appendChild(lo); row.appendChild(hi);
+      return row;
+    }
+    case 'chips': {
+      const box = el('div');
+      box.appendChild(el('div', null, `<span class="lbl-w">${esc(f.label)}</span>`));
+      const chips = el('div', 'chips');
+      const cur = new Set(v ?? []);
+      for (const opt of vocab[f.from] ?? []) {
+        const c = el('span', 'chip' + (cur.has(opt) ? ' on' : ''), esc(opt.replace('_damage', '')));
+        c.addEventListener('click', () => {
+          cur.has(opt) ? cur.delete(opt) : cur.add(opt);
+          c.classList.toggle('on');
+          mobSet(f.key, [...cur]);
+        });
+        chips.appendChild(c);
+      }
+      box.appendChild(chips);
+      return box;
+    }
+    case 'stats': {
+      const box = el('div');
+      box.appendChild(el('div', 'lbl-w', esc(f.label)));
+      const grid = el('div', 'statgrid');
+      for (const k of ['strength', 'dexterity', 'intelligence', 'constitution']) {
+        const cell = el('div', null, `<label>${k.slice(0, 3).toUpperCase()}</label>`);
+        const i = document.createElement('input');
+        i.type = 'number'; i.placeholder = 'role'; i.value = v?.[k] ?? '';
+        i.addEventListener('input', () => {
+          const next = { ...(S.mob.def.stats ?? {}) };
+          if (i.value === '') delete next[k]; else next[k] = Number(i.value);
+          mobSet('stats', next);
+        });
+        cell.appendChild(i); grid.appendChild(cell);
+      }
+      box.appendChild(grid);
+      return box;
+    }
+    case 'resist': {
+      const box = el('div');
+      box.appendChild(el('div', 'lbl-w', esc(f.label)));
+      box.appendChild(el('div', 'hint', '1 = normal, 0 = immune, &gt;1 = vulnerable. Blank = normal.'));
+      const grid = el('div', 'statgrid');
+      for (const brand of S.mob.meta.brands ?? []) {
+        const cell = el('div', null, `<label>${esc(brand.replace('_damage', ''))}</label>`);
+        const i = document.createElement('input');
+        i.type = 'number'; i.step = '0.1'; i.min = '0'; i.placeholder = '1'; i.value = v?.[brand] ?? '';
+        i.addEventListener('input', () => {
+          const next = { ...(S.mob.def.resistances ?? {}) };
+          if (i.value === '') delete next[brand]; else next[brand] = Number(i.value);
+          mobSet('resistances', next);
+        });
+        cell.appendChild(i); grid.appendChild(cell);
+      }
+      box.appendChild(grid);
+      return box;
+    }
+    case 'abilities': return mobRenderAbilities(v ?? []);
+    case 'pack': return mobRenderPack(v);
+    case 'loot': return mobRenderLoot(v ?? []);
+    case 'lines': {
+      const box = el('div');
+      box.appendChild(el('div', 'lbl-w', 'dialogue'));
+      const t = document.createElement('textarea');
+      t.style.height = '52px'; t.style.resize = 'vertical';
+      t.placeholder = f.placeholder ?? '';
+      t.value = (v ?? []).join('\n');
+      t.addEventListener('input', () => mobSet(f.key, t.value.split('\n').map(l => l.trim()).filter(Boolean)));
+      box.appendChild(t);
+      return box;
+    }
+    default: return el('div');
+  }
+}
+
+// The ability kit. Each row shows the ability's own cooldown and range off the
+// registry, so an author can see what a kit costs without opening the ability
+// editor — the collapse of three tools into one screen this panel exists for.
+function mobRenderAbilities(list) {
+  const box = el('div');
+  const all = S.mob.meta.abilities ?? [];
+  list.forEach((entry, i) => {
+    const row = el('div', 'ability-row');
+    const sel = document.createElement('select');
+    sel.innerHTML = all.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+    sel.value = entry.ability ?? '';
+    const w = document.createElement('input'); w.type = 'number'; w.min = '0'; w.title = 'weight (priority)'; w.value = entry.weight ?? 1;
+    const hp = document.createElement('input'); hp.type = 'number'; hp.step = '0.05'; hp.min = '0'; hp.max = '1';
+    hp.title = 'hp_below'; hp.placeholder = 'hp<'; hp.value = entry.hp_below ?? '';
+    const del = el('button', 'del-btn', '✕');
+    const push = () => {
+      const next = [...(S.mob.def.abilities ?? [])];
+      next[i] = { ability: sel.value, weight: Number(w.value) || 1, ...(hp.value === '' ? {} : { hp_below: Number(hp.value) }) };
+      mobSet('abilities', next);
+      mobRenderForm();
+    };
+    sel.addEventListener('change', push); w.addEventListener('change', push); hp.addEventListener('change', push);
+    del.addEventListener('click', () => {
+      const next = [...(S.mob.def.abilities ?? [])]; next.splice(i, 1);
+      mobSet('abilities', next); mobRenderForm();
+    });
+    row.append(sel, w, hp, del);
+    box.appendChild(row);
+    const meta = all.find(a => a.id === entry.ability);
+    if (meta) {
+      box.appendChild(el('div', 'ability-meta',
+        `cd ${(meta.cooldown_ticks / 10).toFixed(1)}s · ${meta.range == null ? meta.shape ?? '—' : `range ${meta.range}`} · ${esc(meta.kinds.join(', '))}`));
+    }
+  });
+  const add = el('button', 'btn secondary sm', '+ ability');
+  add.addEventListener('click', () => {
+    mobSet('abilities', [...(S.mob.def.abilities ?? []), { ability: all[0]?.id ?? '', weight: 1 }]);
+    mobRenderForm();
+  });
+  box.appendChild(add);
+  return box;
+}
+
+function mobRenderPack(pack) {
+  const box = el('div');
+  box.appendChild(el('div', 'lbl-w', 'pack (wild spawns)'));
+  const on = document.createElement('input');
+  on.type = 'checkbox'; on.checked = !!pack; on.style.flex = 'none'; on.style.width = 'auto';
+  const toggle = el('div', 'mob-row');
+  toggle.appendChild(on); toggle.appendChild(el('span', null, 'spawns as a pack'));
+  on.addEventListener('change', () => { mobSet('pack', on.checked ? { radius: 3, size: [3, 3] } : ''); mobRenderForm(); });
+  box.appendChild(toggle);
+  if (!pack) return box;
+  const upd = (patch) => { mobSet('pack', { ...S.mob.def.pack, ...patch }); };
+  const row = el('div', 'mob-row', '<span class="lbl-w">size / radius</span>');
+  const lo = document.createElement('input'), hi = document.createElement('input'), r = document.createElement('input');
+  lo.type = hi.type = r.type = 'number';
+  lo.value = pack.size?.[0] ?? 3; hi.value = pack.size?.[1] ?? 3; r.value = pack.radius ?? 3;
+  lo.addEventListener('input', () => upd({ size: [Number(lo.value), Number(hi.value)] }));
+  hi.addEventListener('input', () => upd({ size: [Number(lo.value), Number(hi.value)] }));
+  r.addEventListener('input', () => upd({ radius: Number(r.value) }));
+  row.append(lo, hi, r);
+  box.appendChild(row);
+  const mrow = el('div', 'mob-row', '<span class="lbl-w">members</span>');
+  const mem = document.createElement('input');
+  mem.placeholder = 'blank = N copies of this mob';
+  mem.value = (pack.members ?? []).join(', ');
+  mem.addEventListener('input', () => {
+    const ids = mem.value.split(',').map(x => x.trim()).filter(Boolean);
+    const next = { ...S.mob.def.pack }; if (ids.length) next.members = ids; else delete next.members;
+    mobSet('pack', next);
+  });
+  mrow.appendChild(mem);
+  box.appendChild(mrow);
+  box.appendChild(el('div', 'hint', 'A fixed roster spawns each member at its OWN level; without one, `size` copies of this template spawn at the band-sampled level.'));
+  return box;
+}
+
+function mobRenderLoot(list) {
+  const box = el('div');
+  box.appendChild(el('div', 'lbl-w', 'guaranteed loot table'));
+  list.forEach((lt, i) => {
+    const d = el('div', 'ditem');
+    d.innerHTML = `<input type="text" placeholder="item base id" value="${esc(lt.item || '')}"><input type="number" step="0.05" min="0" max="1" style="width:60px;flex:none;" value="${lt.chance ?? 0.1}"><button class="del-btn">✕</button>`;
+    const [itemI, chanceI] = d.querySelectorAll('input');
+    const push = () => {
+      const next = [...(S.mob.def.loot_table ?? [])];
+      next[i] = { item: itemI.value, chance: Number(chanceI.value) };
+      mobSet('loot_table', next);
+    };
+    itemI.addEventListener('input', push); chanceI.addEventListener('input', push);
+    d.querySelector('.del-btn').addEventListener('click', () => {
+      const next = [...(S.mob.def.loot_table ?? [])]; next.splice(i, 1);
+      mobSet('loot_table', next); mobRenderForm();
+    });
+    box.appendChild(d);
+  });
+  const add = el('button', 'btn secondary sm', '+ loot');
+  add.addEventListener('click', () => { mobSet('loot_table', [...(S.mob.def.loot_table ?? []), { item: '', chance: 0.1 }]); mobRenderForm(); });
+  box.appendChild(add);
+  return box;
+}
+
+// ── Combat profile ──────────────────────────────────────────────────────────
+// The numbers docs/plan-combat-retune.md anchors on, for the template as
+// edited — so role scaling AND hand-set hp/stats/armor are both reflected, and
+// a boss reads as itself rather than as its role's average.
+async function mobRunSim() {
+  const m = S.mob.def;
+  if (!m?.role) return;
+  const out = $('mob-sim');
+  out.innerHTML = '<div class="derived">simulating…</div>';
+  const r = await api('POST', '/api/mob-sim' + qs(), { mob: m });
+  if (r.error) { out.innerHTML = `<div class="derived err">${esc(r.error)}</div>`; return; }
+  const dmg = Array.isArray(r.damage) ? `${r.damage[0]}–${r.damage[1]}` : r.damage;
+  const stats = Object.entries(r.stats).map(([k, v]) => `${k.slice(0, 3).toUpperCase()} ${v}`).join(' · ');
+  const rows = r.unarmed.map(mu => `<tr>
+      <td>${esc(mu.klass)}</td>
+      <td>${mu.killsIn.toFixed(1)}</td>
+      <td>${mu.diesIn === null || !isFinite(mu.diesIn) ? '∞' : mu.diesIn.toFixed(1)}</td>
+      <td class="${mu.win ? 'win' : 'lose'}">${mu.win ? 'player' : 'MOB'}</td>
+    </tr>`).join('');
+  out.innerHTML =
+    `<div class="derived"><b>${r.hp} hp</b> · ${dmg} per swing · ${r.armor} armor · ${r.xp} xp<br>${esc(stats)}</div>`
+    + `<table><tr><th>vs L${r.level}</th><th>kills in</th><th>dies in</th><th>wins</th></tr>${rows}</table>`
+    + '<div class="derived" style="margin-top:5px;">Swings, unarmed, at level parity. The anchor is ~5–6 to kill and ~8–10 to die.</div>';
+}
+$('mob-sim-run').addEventListener('click', mobRunSim);
+
+// The whole form is rebuilt from the def, so there is no half-state where a
+// control and the def disagree — the JSON pane and the form are two views of
+// one object rather than two stores kept in step.
+function mobSyncForm() { mobRenderForm(); $('mob-sim').innerHTML = ''; }
+function updateSpriteDot() {
+  const dot = $('mob-sprite-dot');
+  if (dot) dot.style.background = S.mob.meta.sprites?.[S.mob.def?.sprite] || '#666';
+}
 function mobSyncText() { $('json-editor').value = JSON.stringify(S.mob.def, null, 2); $('json-editor').classList.remove('invalid'); $('json-status').textContent = 'in sync'; $('json-status').className = 'ok'; }
 function mobDirty() { setDirty(true); mobSyncText(); }
-function mobDirtyText() { setDirty(true); mobSyncText(); } // loot text edits: keep form DOM, just resync JSON
 
 function drawMob() {
   const m = S.mob.def; const T = 1;
@@ -1801,7 +2123,7 @@ function drawMob() {
   ctx.textAlign = 'left';
 }
 
-$('new-mob-btn').addEventListener('click', () => { mobBlank(); setDirty(false); populateMobSelect(); mobSyncForm(); mobSyncText(); drawMob(); $('mob-id').focus(); });
+$('new-mob-btn').addEventListener('click', () => { mobBlank(); setDirty(false); populateMobSelect(); mobSyncForm(); mobSyncText(); drawMob(); document.querySelector('#mob-groups input')?.focus(); });
 async function saveMob() {
   const m = S.mob.def; if (!m) return;
   const id = (m.id || '').trim(); if (!id) { setStatus('id required', 'err'); return; }
