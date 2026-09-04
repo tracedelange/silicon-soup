@@ -637,7 +637,9 @@ export function generateZoneGrid(
   // Warn when a dungeon/interior zone uses a walkable default_tile alongside
   // walled regions — the classic dungeon-carving bug where background is traversable.
   // Outdoor zones (those with edge connections) are exempt: background grass/dirt is expected.
-  if (!blockingTiles.has(defaultTile)) {
+  // So is a `transparent` background: that zone is a wilderness footprint whose
+  // background falls through to the field, not an interior (see mapgen/bake.ts).
+  if (!blockingTiles.has(defaultTile) && defaultTile !== 'transparent') {
     const hasEdgeConnections = Object.values((zoneDef as { connections?: Record<string, unknown> }).connections || {}).some(Boolean);
     if (!hasEdgeConnections) {
       const hasWalledRegion = ops.some(op => op.type === 'region' && (op as { walls?: unknown }).walls);

@@ -165,7 +165,7 @@ New wild tiles still need color/sprite entries in `tilesets/overworld.json`,
 which the zone editor can already write (`PUT /api/tiles/:tileset`). The camp
 tiles used so far (`thatch`, `wall`, `door`, `wood_floor`) are already there.
 
-### 3. Placement viability at footprint scale — **S/M**
+### 3. Placement viability at footprint scale — **S/M. DONE.**
 
 `entranceViable` (`atlas.ts`) tests one tile and the ground immediately around
 it. A 64×64 footprint needs most of its *area* on land and clear of mountain.
@@ -200,12 +200,18 @@ source:
 - despawn/re-materialize on chunk unload. Rotation is nearly free: the existing
   cull already removes every non-player entity in the wild.
 
-### 5. Portals out of a footprint — **S**
+### 5. Portals out of a footprint — **S. Single-portal case is free.**
 
 `wildTileAt` already returns `'portal'` for `atlas.sites[].worldX/Y`, overriding
-both the field and the site's own stamp so an entrance can never seal itself. A
-site becomes a footprint plus one or more portal *offsets* within it, each
-targeting an interior zone. Same mechanism, plural.
+both the field and the site's own stamp so an entrance can never seal itself.
+
+The bake centers the footprint on the site tile, so **the entrance is always the
+footprint's exact center** — a region placed `at: { center: true }` always
+contains it, with no offset bookkeeping at all. That is the whole single-portal
+case, and it is why the raider camp's great tent is a centered region.
+
+What is left is the plural form: a site as a footprint plus N portal *offsets*
+within it, each targeting a different interior zone. Same mechanism, indexed.
 
 ### 6. ~~Authored interiors re-roll daily~~ — **deleted; nothing to build**
 
@@ -316,33 +322,44 @@ route that exists, once the tools are consolidated.
 *Fallback while deferred:* an `inert: true` fixture mob with a `loot_table`. Zero
 engine work; the player attacks the chest to open it.
 
-### 9. The zone editor cannot open a site zone, and cannot preview one in context — **M, tooling**
+### 9. The zone editor cannot open a site zone, and cannot preview one in context — **M, tooling. DONE.**
 
 `zoneIndex()` (`tools/zone-editor/server.ts:104`) walks `<world>/zones` only, so
 `world/dungeons/*.json` is invisible — every dungeon you have was hand-written
 JSON. On top of indexing sites, the exterior needs authoring affordances the
 editor does not have:
 
-- **Render the surrounding field.** A footprint previewed against a black void
-  tells you nothing about the seam that matters most. Draw the actual wilderness
-  around it at a candidate anchor — the editor server can import the same
-  `wildTileAt` the game uses.
-- **A transparent brush** for fall-through cells (see gap 1).
-- **A bake button**: `generateZoneGrid` → RLE → write the `grid` stamp and the
-  authored spawn list into the site file.
-- **An epoch scrubber — now required, not a convenience.** Since the arrangement
-  re-rolls, a bake is only shippable once you have seen it across a run of epochs.
-  Show where the footprint lands and what it looks like for epoch N, N+1, N+2…,
-  catching both "it landed in the ocean" and "the region my boss spawn depends on
-  didn't generate this time."
+**What shipped, and the one decision inside it.** Rather than a fourth editor
+mode, a site file contributes two ordinary **zone documents** — `<id>` (interior)
+and `<id>__footprint` (exterior) — indexed alongside `world/zones/`. Both are
+ZoneDefs, so paint, region, stamp, spawn, the JSON pane and save all work on them
+unchanged; the dropdown groups them, and save strips the synthesized `id`/`seed`
+back out so the loader's "a template must not set these" rule still holds. A site
+with no exterior yet opens as a blank transparent canvas, so *creating* one is
+just authoring into it and saving.
 
-Pair it with a **cross-epoch bake test** in the `npm run test:gen` harness: bake
-a site across ~50 epochs and assert that every region an authored spawn references
-exists in all of them, and that the great tent's portal region is reachable from
-the footprint edge. "Same seed → same output" is already a testable claim in this
-repo; "every seed → these regions exist" is the same kind of claim and is exactly
-what re-rolling internals puts at risk. Without it, a missing boss is a bug you
-find in production at midnight.
+The new surface is a **Field panel** on exterior documents:
+
+- **The surrounding field is drawn.** A footprint previewed against a black void
+  tells you nothing about the seam that matters most, so the preview composites
+  the bake over the actual wilderness at the position this epoch gives it. It is
+  **read-only** on purpose — you author in the zone view and *check* in the field
+  view; editing through a margin-shifted, procedurally-placed frame is a
+  coordinate bug waiting to happen.
+- **The bake is the runtime bake.** `POST /api/field-preview` calls
+  `bakeSiteFootprint`, the same function `server/index.ts` bakes the live atlas
+  with. A preview that lies is worse than no preview.
+- **An epoch scrubber — required, not a convenience,** since the arrangement
+  re-rolls. Plus a 24-epoch **sweep** (`POST /api/site-epochs`) reporting, per
+  epoch, whether the site was placed at all, where, in what biome and local band,
+  and *which referenced regions failed to generate*. Rows are clickable — the
+  report is a way in to the problem, not just a list of them.
+- **A transparent brush** came free: `transparent` is already a tileset entry and
+  the palette and canvas already render it as a checkerboard.
+
+Still worth adding: the same region-existence check as a **cross-epoch bake test**
+in `npm run test:gen`, so a missing boss fails CI rather than being found in
+production at midnight. The interactive sweep is the same claim, run by hand.
 
 ### 10. Mob editor covers about a third of `MobTemplate` — **M, tooling**
 
@@ -402,8 +419,13 @@ Each step is independently useful; nothing later is blocked on a big-bang.
    tool and the runtime import); `DungeonDef.footprint` is the authored exterior;
    the server bakes at `loadOrBuildAtlas`, before the cache write, on boot *and*
    on rotation. A 40x40 camp bakes to 1.3 KB.
-2. **(3) footprint-scale placement** + **(9) bake button and in-context preview**.
-   Now you can author a camp and see where it lands.
+2. ~~**(3) footprint-scale placement** + **(9) bake button and in-context preview**.~~
+   **Done.** `footprintViable` samples a lattice across the rect and spacing
+   counts the footprint; the editor indexes `world/dungeons/*.json` as ordinary
+   zone documents (`<id>` interior, `<id>__footprint` exterior) so every existing
+   tool works on them, and a Field panel bakes the open footprint over the real
+   wilderness at the epoch you scrub to, with a 24-epoch sweep for placement and
+   region existence. `world/dungeons/raider_camp.json` is the seed POI.
 3. **(4) authored wild entities.** The camp becomes populated. Biggest item; do
    it once the placement half is proven.
 4. **(5) + (7) + (7b) portals, multi-zone sites, and the reserved boss chamber.**
@@ -461,7 +483,9 @@ footprint preview and the server's atlas bake must never drift. Put
 `shared/worldgen/` already enforces between client and server, applied to tooling.
 A preview that lies is worse than no preview.
 
-**One problems panel.** Validation is scattered today: the zone editor captures
+**One problems panel.** (Partly started: the Field panel's sweep is the first of
+these, and `/api/field-preview` already folds mapgen warnings and missing-region
+errors into the existing warnings badge.) Validation is scattered today: the zone editor captures
 mapgen `console.warn`, the quest schema throws at load, ability lint is a CLI,
 cross-epoch region existence is checked nowhere. Aggregate them into one surface
 that answers "is this site shippable?" — mapgen warnings, unknown spawn entities,
