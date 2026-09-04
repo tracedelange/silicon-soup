@@ -208,7 +208,11 @@ export function expandRow(half: string): string {
  *  a stray off-by-a-few gray from the paint program still lands on its stop. */
 export const RAMP_STOPS = 5;
 
-function rampStep(r: number, g: number, b: number): number {
+/** The five key grays themselves — what overlay art is painted in, and what the
+ *  editor writes back out. Index is the ramp stop. */
+export const KEY_GRAYS: readonly number[] = [0, 64, 128, 191, 255];
+
+export function rampStep(r: number, g: number, b: number): number {
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return Math.max(0, Math.min(RAMP_STOPS - 1, Math.round(lum * (RAMP_STOPS - 1))));
 }

@@ -1,11 +1,17 @@
 # Gear overlays
 
 Grayscale art for the player paper-doll's equipment layers. Composited over the
-class body by `shared/playerComposite.ts` and previewed by the workbench:
+class body by `shared/playerComposite.ts`.
 
 ```bash
 npm run sprite-lab   # http://localhost:3005
 ```
+
+The workbench both previews and **edits** these files: pick an overlay under
+*Editing*, draw with the five-gray palette, and every stroke re-composites onto
+the character live before anything touches disk. Save writes the PNG back here.
+Aseprite still works fine — the format below is the whole contract, and the
+workbench picks up an externally-saved file on *Reload from disk*.
 
 ## The contract
 
@@ -20,9 +26,10 @@ npm run sprite-lab   # http://localhost:3005
   rarity rings the silhouette. Painting in color fights all three.
 - **Align to the pose contract** — head rows 3-13, shoulders 14, hands 19-20,
   belt 20-22, feet 29, in the body's 32-row grid (so double for 64px rows).
-  `POSE_ANCHORS` in `shared/playerComposite.ts` is the source of truth;
-  `http://localhost:3005/api/pose-guide.png?klass=fighter&scale=1` renders it as
-  a reference layer to import into Aseprite. `keys.gpl` here is the palette.
+  `POSE_ANCHORS` in `shared/playerComposite.ts` is the source of truth; the
+  workbench draws it under the canvas, and
+  `http://localhost:3005/api/pose-guide.png?klass=fighter&scale=1` exports it as
+  a reference layer for Aseprite. `keys.gpl` here is the palette.
 
 ## Naming
 

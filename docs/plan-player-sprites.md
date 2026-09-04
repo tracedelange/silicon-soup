@@ -61,7 +61,9 @@ pixel-art characters, not squares.
 **Status (Sept 2026): the machinery is built and one weapon overlay ships.**
 The compositor moved out of the client into `shared/playerComposite.ts` (pure,
 runs in the browser and in Node), gear resolution into `shared/itemVisuals.ts`,
-and the whole chain is previewable via `npm run sprite-lab` (:3005). What
+and the whole chain is previewable *and editable* via `npm run sprite-lab`
+(:3005) — it carries a pixel editor that composites each stroke onto the
+character live, so overlays can be drawn without leaving the tool. What
 remains is *art* — 6 more weapon overlays, 2 chests, 2 helms — not code. Each is
 a 64×64 grayscale PNG dropped into `client/public/gear/`; the filename is the
 registration, and a missing file simply doesn't draw. See that folder's

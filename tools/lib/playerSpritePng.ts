@@ -5,11 +5,12 @@
 // This is the same renderComposite the game calls — the workbench previews the
 // real draw path, not a lookalike of it.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import type { GearVisual } from '../../shared/itemVisuals.ts';
-import { SPRITE_SIZE, renderComposite } from '../../shared/playerComposite.ts';
+import { KEY_GRAYS, SPRITE_SIZE, rampStep } from '../../shared/playerComposite.ts';
+import { renderComposite } from '../../shared/playerComposite.ts';
 import type { CompositeLayer, CompositeSpec } from '../../shared/playerComposite.ts';
 
 /** Where the hand-authored grayscale overlays live. Served to the game by vite
@@ -29,6 +30,38 @@ export function loadGearLayer(name: string, dir = GEAR_DIR): Uint8ClampedArray |
     throw new LayerSizeError(`${name}.png is ${png.width}x${png.height}, must be ${SPRITE_SIZE}x${SPRITE_SIZE}`);
   }
   return new Uint8ClampedArray(png.data);
+}
+
+/**
+ * Overlay art as one authored step per pixel: -1 transparent, else the key-gray
+ * index 0..4. This is the form the sprite-lab editor paints in and posts back —
+ * a PNG's exact bytes are an encoding detail, the steps are the actual art, and
+ * round-tripping through steps is what guarantees an edit can't drift the
+ * palette off its key grays.
+ */
+export const TRANSPARENT = -1;
+
+export function pixelsToSteps(pixels: Uint8ClampedArray): Int8Array {
+  const steps = new Int8Array(SPRITE_SIZE * SPRITE_SIZE);
+  for (let p = 0; p < steps.length; p++) {
+    const i = p * 4;
+    steps[p] = (pixels[i + 3] ?? 0) === 0
+      ? TRANSPARENT
+      : rampStep(pixels[i]!, pixels[i + 1]!, pixels[i + 2]!);
+  }
+  return steps;
+}
+
+export function stepsToPixels(steps: ArrayLike<number>): Uint8ClampedArray {
+  const pixels = new Uint8ClampedArray(SPRITE_SIZE * SPRITE_SIZE * 4);
+  for (let p = 0; p < SPRITE_SIZE * SPRITE_SIZE; p++) {
+    const step = steps[p] ?? TRANSPARENT;
+    if (step < 0 || step >= KEY_GRAYS.length) continue;
+    const v = KEY_GRAYS[step]!;
+    const i = p * 4;
+    pixels[i] = v; pixels[i + 1] = v; pixels[i + 2] = v; pixels[i + 3] = 255;
+  }
+  return pixels;
 }
 
 /** Nearest-neighbour upscale — pixel art previews have to stay hard-edged. */
@@ -59,17 +92,30 @@ export interface SpriteRenderResult {
   missing: string[];
 }
 
+export interface SpriteRenderOpts {
+  scale?: number;
+  dir?: string;
+  /** Unsaved editor art, by layer name. Takes precedence over the PNG on disk,
+   *  which is what makes the workbench preview a stroke before it's committed. */
+  drafts?: Record<string, Uint8ClampedArray>;
+}
+
 export function playerSpritePng(
   spec: CompositeSpec,
   visuals: readonly GearVisual[],
-  { scale = 1, dir = GEAR_DIR }: { scale?: number; dir?: string } = {},
+  { scale = 1, dir = GEAR_DIR, drafts }: SpriteRenderOpts = {},
 ): SpriteRenderResult {
   const layers: CompositeLayer[] = [];
   const missing: string[] = [];
   for (const visual of visuals) {
-    const pixels = loadGearLayer(visual.layer, dir);
+    const pixels = drafts?.[visual.layer] ?? loadGearLayer(visual.layer, dir);
     if (pixels) layers.push({ pixels, visual });
     else missing.push(visual.layer);
   }
   return { png: rgbaToPng(renderComposite(spec, layers), scale), missing };
+}
+
+/** Write an overlay back to disk from the editor's step array. */
+export function saveGearLayer(name: string, steps: ArrayLike<number>, dir = GEAR_DIR): void {
+  writeFileSync(join(dir, `${name}.png`), rgbaToPng(stepsToPixels(steps)));
 }

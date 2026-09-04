@@ -17,13 +17,17 @@ import yaml from 'js-yaml';
 import { BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, rarityColor } from '../../shared/itemVisuals.ts';
 import { GRID, POSE_ANCHORS, SPRITE_SIZE, TEMPLATES, renderComposite } from '../../shared/playerComposite.ts';
 import type { ClassId, Equipment, InventoryStack } from '../../shared/types.ts';
-import { GEAR_DIR, LayerSizeError, playerSpritePng, rgbaToPng } from '../lib/playerSpritePng.ts';
+import {
+  GEAR_DIR, LayerSizeError, TRANSPARENT, loadGearLayer, pixelsToSteps,
+  playerSpritePng, rgbaToPng, saveGearLayer, stepsToPixels,
+} from '../lib/playerSpritePng.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const PORT = 3005;
 
 const app = express();
+app.use(express.json({ limit: '2mb' }));
 app.use(express.static(__dirname));
 // Serve the overlays themselves so the lab can show each layer's raw grayscale
 // next to the composite. no-store: re-saving art must not need a hard refresh.
@@ -80,14 +84,19 @@ function equipmentFromQuery(q: Record<string, unknown>): Equipment {
   return eq as Equipment;
 }
 
-app.get('/api/sprite.png', (req, res) => {
-  const q = req.query as Record<string, unknown>;
+const LAYER_RE = /^[a-z][a-z0-9_]*$/;
+
+function sendSprite(
+  res: express.Response,
+  q: Record<string, unknown>,
+  drafts?: Record<string, Uint8ClampedArray>,
+): void {
   const scale = Math.max(1, Math.min(16, Number(q.scale) || 6));
   try {
     const { png, missing } = playerSpritePng(
       { klass: (q.klass as ClassId) || 'fighter', color: (q.color as string) || '#6ec6f0' },
       gearVisuals(equipmentFromQuery(q)),
-      { scale },
+      { scale, drafts },
     );
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'no-store');
@@ -97,6 +106,51 @@ app.get('/api/sprite.png', (req, res) => {
   } catch (err) {
     const status = err instanceof LayerSizeError ? 400 : 500;
     res.status(status).json({ error: (err as Error).message });
+  }
+}
+
+app.get('/api/sprite.png', (req, res) => sendSprite(res, req.query as Record<string, unknown>));
+
+/** Same render, but with the editor's unsaved art standing in for one layer —
+ *  so a stroke shows up on the character before anything touches disk. */
+app.post('/api/sprite.png', (req, res) => {
+  const { params = {}, draft } = req.body as {
+    params?: Record<string, unknown>;
+    draft?: { layer?: string; steps?: number[] };
+  };
+  const drafts = draft?.layer && Array.isArray(draft.steps)
+    ? { [draft.layer]: stepsToPixels(draft.steps) }
+    : undefined;
+  sendSprite(res, params, drafts);
+});
+
+/** The authored art for one overlay, as steps — what the editor loads into its
+ *  canvas. An overlay nobody has drawn comes back blank rather than 404: a new
+ *  layer and an empty one are the same thing to the editor. */
+app.get('/api/layer/:name', (req, res) => {
+  const name = req.params.name;
+  if (!LAYER_RE.test(name)) return res.status(400).json({ error: `invalid layer name: ${name}` });
+  try {
+    const pixels = loadGearLayer(name);
+    const steps = pixels ? pixelsToSteps(pixels) : new Int8Array(SPRITE_SIZE * SPRITE_SIZE).fill(TRANSPARENT);
+    res.json({ name, size: SPRITE_SIZE, exists: !!pixels, steps: [...steps] });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+app.put('/api/layer/:name', (req, res) => {
+  const name = req.params.name;
+  if (!LAYER_RE.test(name)) return res.status(400).json({ error: `invalid layer name: ${name}` });
+  const steps = (req.body as { steps?: number[] }).steps;
+  if (!Array.isArray(steps) || steps.length !== SPRITE_SIZE * SPRITE_SIZE) {
+    return res.status(400).json({ error: `steps must be ${SPRITE_SIZE * SPRITE_SIZE} entries` });
+  }
+  try {
+    saveGearLayer(name, steps);
+    res.json({ ok: true, path: `client/public/gear/${name}.png` });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

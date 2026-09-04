@@ -7,7 +7,7 @@
 <style>
   :root {
     --bg: #14161a; --panel: #1c1f26; --panel2: #232732; --line: #333a48;
-    --text: #e6e8ec; --dim: #8a92a3; --accent: #d98a1f; --warn: #d95f5f;
+    --text: #e6e8ec; --dim: #8a92a3; --accent: #d98a1f; --warn: #d95f5f; --ok: #4caf50;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 13px/1.4 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); }
@@ -16,47 +16,60 @@
   header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
   header .sub { color: var(--dim); font-size: 12px; flex: 1; }
   button { font: inherit; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 10px; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
   button.primary { background: var(--accent); color: #14161a; border-color: var(--accent); font-weight: 600; }
+  button.on { background: var(--accent); color: #14161a; border-color: var(--accent); }
   select, input[type=color], input[type=range] { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 3px 5px; }
   input[type=color] { padding: 1px; width: 44px; height: 26px; }
   label { color: var(--dim); }
   a { color: var(--accent); }
-  .controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  code { color: var(--text); background: var(--panel2); padding: 1px 4px; border-radius: 3px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
   .ctl { display: flex; flex-direction: column; gap: 4px; }
+  .row { display: flex; align-items: center; gap: 6px; }
   .layout { display: flex; align-items: flex-start; }
-  .side { width: 340px; flex: none; padding: 16px; border-right: 1px solid var(--line); height: calc(100vh - 118px); overflow-y: auto; }
-  .main { flex: 1; padding: 16px; height: calc(100vh - 118px); overflow-y: auto; }
+  .side { width: 320px; flex: none; padding: 16px; border-right: 1px solid var(--line); height: calc(100vh - 106px); overflow-y: auto; }
+  .main { flex: 1; padding: 16px; height: calc(100vh - 106px); overflow-y: auto; }
   fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 0 0 14px; }
   legend { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 0 4px; }
   img.pix { image-rendering: pixelated; display: block; }
-  .stage { position: relative; display: inline-block; background:
-    repeating-conic-gradient(#20242c 0 25%, #191c22 0 50%) 0 0 / 24px 24px; border: 1px solid var(--line); border-radius: 6px; }
+  .checker { background: repeating-conic-gradient(#20242c 0 25%, #191c22 0 50%) 0 0 / 24px 24px; }
+  .stage { position: relative; display: inline-block; border: 1px solid var(--line); border-radius: 6px; }
   .stage .guide { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
   .stage.guides .guide { opacity: .85; }
+  #edit { display: block; cursor: crosshair; border: 1px solid var(--line); border-radius: 6px; touch-action: none; }
+  .studio { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .swatches { display: flex; gap: 4px; margin: 8px 0; }
+  .sw { width: 40px; height: 32px; border: 2px solid var(--line); border-radius: 4px; cursor: pointer; display: grid; place-items: center; font-size: 10px; color: #777; }
+  .sw.on { border-color: var(--accent); }
+  .sw.clear { background: repeating-conic-gradient(#3a3f4a 0 25%, #262a32 0 50%) 0 0 / 10px 10px; }
+  .tools { display: flex; gap: 4px; }
   .sheet { display: flex; flex-wrap: wrap; gap: 10px; }
   .cell { text-align: center; }
   .cell .cap { color: var(--dim); font-size: 11px; margin-top: 3px; }
-  .cell img { background: repeating-conic-gradient(#20242c 0 25%, #191c22 0 50%) 0 0 / 12px 12px; border: 1px solid var(--line); border-radius: 4px; }
+  .cell img { border: 1px solid var(--line); border-radius: 4px; }
   .warn { color: var(--warn); }
+  .ok { color: var(--ok); }
+  .dirty { color: var(--accent); font-weight: 600; }
   .ramp { display: flex; height: 14px; width: 100%; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; margin-top: 4px; }
   .ramp span { flex: 1; }
   .note { color: var(--dim); font-size: 12px; }
-  .note code { color: var(--text); background: var(--panel2); padding: 1px 4px; border-radius: 3px; }
   .note ol { padding-left: 18px; margin: 6px 0; }
-  .keys { display: flex; gap: 0; margin: 6px 0; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
-  .keys span { flex: 1; height: 26px; font-size: 10px; color: #888; display: grid; place-items: center; }
+  .note kbd { background: var(--panel2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; font: inherit; font-size: 11px; }
+  .keyhelp { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin-top: 6px; }
 </style>
 </head>
 <body>
 <header>
   <h1>Sprite Lab</h1>
   <span class="sub">gear overlays for the player paper-doll — <code>client/public/gear/</code></span>
-  <label><input type="checkbox" id="guides" /> pose guide</label>
-  <button class="primary" id="reload">Reload art</button>
+  <label class="row"><input type="checkbox" id="guides" /> pose guide</label>
+  <button id="reload">Reload from disk</button>
 </header>
 
 <div class="controls">
+  <div class="ctl"><label>Editing</label><select id="layer"></select></div>
   <div class="ctl"><label>Class</label><select id="klass"></select></div>
   <div class="ctl"><label>Player color</label><input type="color" id="color" value="#6ec6f0" /></div>
   <div class="ctl"><label>Weapon</label><select id="arch"></select></div>
@@ -77,49 +90,70 @@
     </fieldset>
 
     <fieldset>
-      <legend>Drawing an overlay</legend>
+      <legend>How overlays work</legend>
       <div class="note">
         <ol>
-          <li>Canvas <b>64x64</b>, transparent background. Full width — a weapon is
-            asymmetric, so it can't use the body's mirror trick.</li>
-          <li>Paint in these five key grays only. Each maps to the material's ramp
-            stop at the same index, darkest to lightest:</li>
+          <li>Paint in the five key grays only. Each maps to the equipped
+            material's ramp stop at the same index — step 0 is the outline,
+            step 4 is specular highlight.</li>
+          <li>No color: the material supplies it, a brand tints the top two
+            stops, and rarity rings the silhouette.</li>
+          <li>Full width, 64×64 — a weapon is asymmetric, so it can't use the
+            body's left-half mirror.</li>
+          <li>Align to the pose guide: head rows 3–13, shoulders 14, hands
+            19–20, belt 20–22, feet 29 (in the body's 32-row grid).</li>
         </ol>
-        <div class="keys">
-          <span style="background:#000000">0</span><span style="background:#404040">64</span>
-          <span style="background:#808080">128</span><span style="background:#bfbfbf">191</span>
-          <span style="background:#ffffff;color:#555">255</span>
-        </div>
-        <ol start="3">
-          <li>Use step 0 for the outline, step 4 for specular highlights. Nearest
-            stop wins, so a gray that's a few off still lands right.</li>
-          <li>Align to the pose guide — toggle it above, or
-            <a id="guideDl" href="#" download="pose-guide.png">download it</a> as an
-            Aseprite reference layer.</li>
-          <li>Save as <code>client/public/gear/&lt;name&gt;.png</code>: the archetype id
-            for a weapon (<code>sword</code>, <code>maul</code>), or
-            <code>chest_light</code> / <code>chest_heavy</code> /
-            <code>helmet_light</code> / <code>helmet_heavy</code> for armor.</li>
-        </ol>
-        No registry to update — a file appearing is what makes an overlay real,
-        and a missing one just doesn't draw.
+        Saving writes <code>client/public/gear/&lt;layer&gt;.png</code>. There's no
+        registry to update — the file appearing is what makes an overlay real.
+        Prefer Aseprite? <a id="guideDl" href="#" download="pose-guide.png">Grab the
+        pose guide</a> and the palette at <code>gear/keys.gpl</code>.
       </div>
     </fieldset>
 
     <fieldset>
-      <legend>Raw overlay</legend>
-      <div id="rawBox" class="note">—</div>
+      <legend>Keys</legend>
+      <div class="note keyhelp">
+        <kbd>1</kbd>–<kbd>5</kbd><span>pick a shade</span>
+        <kbd>0</kbd><span>erase</span>
+        <kbd>B</kbd><span>pencil</span>
+        <kbd>E</kbd><span>eraser</span>
+        <kbd>G</kbd><span>fill</span>
+        <kbd>I</kbd><span>eyedropper</span>
+        <kbd>⌘Z</kbd><span>undo</span>
+        <kbd>⌘S</kbd><span>save</span>
+        <span>right-drag</span><span>erase</span>
+      </div>
     </fieldset>
   </div>
 
   <div class="main">
-    <h2>Composite</h2>
-    <div class="stage" id="stage">
-      <img class="pix" id="hero" width="512" height="512" alt="composite" />
-      <img class="pix guide" id="guideImg" width="512" height="512" alt="" />
+    <div class="studio">
+      <div>
+        <h2>Overlay <span id="layerName"></span> <span id="dirty"></span></h2>
+        <canvas id="edit" class="checker" width="512" height="512"></canvas>
+        <div class="swatches" id="swatches"></div>
+        <div class="row" style="justify-content:space-between">
+          <div class="tools" id="tools"></div>
+          <div class="row">
+            <label class="row"><input type="checkbox" id="grid" checked /> grid</label>
+            <button id="undo" disabled>Undo</button>
+            <button id="revert">Revert</button>
+            <button class="primary" id="save" disabled>Save</button>
+          </div>
+        </div>
+        <div id="saveMsg" class="note" style="margin-top:6px">&nbsp;</div>
+      </div>
+
+      <div>
+        <h2>On the character</h2>
+        <div class="stage checker" id="stage">
+          <img class="pix" id="hero" width="512" height="512" alt="composite" />
+          <img class="pix guide" id="guideImg" width="512" height="512" alt="" />
+        </div>
+      </div>
     </div>
 
-    <h2 style="margin-top:20px">Every material for this weapon</h2>
+    <h2 style="margin-top:22px">Every material for this weapon</h2>
     <div class="sheet" id="matSheet"></div>
 
     <h2 style="margin-top:20px">Rarity and brand passes</h2>
@@ -129,18 +163,269 @@
 
 <script type="module">
 const $ = (id) => document.getElementById(id);
+const SIZE = 64;
+const KEY_GRAYS = [0, 64, 128, 191, 255];
+const CLEAR = -1;
+
 let meta = null;
 let nonce = Date.now();
 
+// ── editor state ────────────────────────────────────────────────────────────
+let steps = new Int8Array(SIZE * SIZE).fill(CLEAR);  // the art being edited
+let saved = null;                                    // last-known-on-disk copy
+let shade = 4;
+let tool = 'pencil';
+const undos = [];
+let painting = null;   // the step being painted this drag, or null
+let last = null;       // previous cell, for line interpolation
+let guideImg = new Image();
+let guideReady = false;
+
 const opt = (v, label) => { const o = document.createElement('option'); o.value = v; o.textContent = label; return o; };
+const dirty = () => saved && steps.some((v, i) => v !== saved[i]);
 
 function materialsFor(archId) {
   const arch = meta.archetypes.find((a) => a.id === archId);
-  if (!arch) return [];
-  return meta.materials.filter((m) => arch.material_classes.includes(m.class));
+  return arch ? meta.materials.filter((m) => arch.material_classes.includes(m.class)) : [];
 }
 
-/** Every knob that changes what gets drawn, as a query string. */
+/** The overlays worth offering: every mainhand archetype, plus the two armor
+ *  silhouettes per drawn slot. Matches the naming contract in gear/README.md. */
+function layerNames() {
+  const weapons = meta.archetypes.filter((a) => a.slot === 'mainhand').map((a) => a.id);
+  return [...weapons, 'chest_light', 'chest_heavy', 'helmet_light', 'helmet_heavy'];
+}
+
+// ── canvas ──────────────────────────────────────────────────────────────────
+function editZoom() { return Number($('zoom').value); }
+
+function repaint() {
+  const z = editZoom();
+  const cv = $('edit');
+  cv.width = cv.height = SIZE * z;
+  const c = cv.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, cv.width, cv.height);
+
+  if ($('guides').checked && guideReady) {
+    c.globalAlpha = 0.5;
+    c.drawImage(guideImg, 0, 0, cv.width, cv.height);
+    c.globalAlpha = 1;
+  }
+
+  for (let p = 0; p < steps.length; p++) {
+    const s = steps[p];
+    if (s < 0) continue;
+    const v = KEY_GRAYS[s];
+    c.fillStyle = `rgb(${v},${v},${v})`;
+    c.fillRect((p % SIZE) * z, Math.floor(p / SIZE) * z, z, z);
+  }
+
+  if ($('grid').checked && z >= 5) {
+    c.strokeStyle = 'rgba(255,255,255,.07)';
+    c.lineWidth = 1;
+    for (let i = 0; i <= SIZE; i++) {
+      const at = i * z + .5;
+      c.beginPath(); c.moveTo(at, 0); c.lineTo(at, cv.height); c.stroke();
+      c.beginPath(); c.moveTo(0, at); c.lineTo(cv.width, at); c.stroke();
+    }
+    // Heavier rule every 8 cells — the eye needs somewhere to count from.
+    c.strokeStyle = 'rgba(255,255,255,.16)';
+    for (let i = 0; i <= SIZE; i += 8) {
+      const at = i * z + .5;
+      c.beginPath(); c.moveTo(at, 0); c.lineTo(at, cv.height); c.stroke();
+      c.beginPath(); c.moveTo(0, at); c.lineTo(cv.width, at); c.stroke();
+    }
+  }
+
+  $('dirty').innerHTML = dirty() ? '<span class="dirty">• unsaved</span>' : '';
+  $('save').disabled = !dirty();
+  $('undo').disabled = !undos.length;
+}
+
+function cellAt(ev) {
+  const r = $('edit').getBoundingClientRect();
+  const z = editZoom();
+  const x = Math.floor((ev.clientX - r.left) / z);
+  const y = Math.floor((ev.clientY - r.top) / z);
+  return x >= 0 && x < SIZE && y >= 0 && y < SIZE ? { x, y } : null;
+}
+
+function put(x, y, s) { steps[y * SIZE + x] = s; }
+
+/** Bresenham between two cells: a fast drag must not leave gaps in the stroke. */
+function line(a, b, s) {
+  let { x: x0, y: y0 } = a;
+  const { x: x1, y: y1 } = b;
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  for (;;) {
+    put(x0, y0, s);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+}
+
+function flood(x, y, s) {
+  const from = steps[y * SIZE + x];
+  if (from === s) return;
+  const stack = [[x, y]];
+  while (stack.length) {
+    const [cx, cy] = stack.pop();
+    if (cx < 0 || cx >= SIZE || cy < 0 || cy >= SIZE) continue;
+    if (steps[cy * SIZE + cx] !== from) continue;
+    put(cx, cy, s);
+    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+}
+
+function pushUndo() {
+  undos.push(Int8Array.from(steps));
+  if (undos.length > 60) undos.shift();
+}
+
+$('edit').addEventListener('pointerdown', (ev) => {
+  const at = cellAt(ev);
+  if (!at) return;
+  ev.preventDefault();
+  $('edit').setPointerCapture(ev.pointerId);
+
+  if (tool === 'picker') {
+    const s = steps[at.y * SIZE + at.x];
+    if (s >= 0) selectShade(s);
+    return;
+  }
+  pushUndo();
+  // Right button always erases — the fastest way to fix a stray pixel.
+  const s = (ev.button === 2 || tool === 'eraser') ? CLEAR : shade;
+  if (tool === 'fill') { flood(at.x, at.y, s); repaint(); refreshComposite(); return; }
+  painting = s;
+  last = at;
+  put(at.x, at.y, s);
+  repaint();
+});
+
+$('edit').addEventListener('pointermove', (ev) => {
+  if (painting === null) return;
+  const at = cellAt(ev);
+  if (!at) return;
+  line(last, at, painting);
+  last = at;
+  repaint();
+});
+
+for (const evt of ['pointerup', 'pointercancel', 'pointerleave']) {
+  $('edit').addEventListener(evt, () => {
+    if (painting === null) return;
+    painting = null; last = null;
+    refreshComposite();
+  });
+}
+$('edit').addEventListener('contextmenu', (ev) => ev.preventDefault());
+
+// ── palette + tools ─────────────────────────────────────────────────────────
+function selectShade(s) {
+  shade = s;
+  for (const el of $('swatches').children) el.classList.toggle('on', Number(el.dataset.step) === s);
+}
+
+function selectTool(t) {
+  tool = t;
+  for (const el of $('tools').children) el.classList.toggle('on', el.dataset.tool === t);
+  const clear = $('swatches').firstElementChild;
+  if (clear) clear.classList.toggle('on', t === 'eraser');
+  if (t === 'eraser') for (const el of $('swatches').children) if (el !== clear) el.classList.remove('on');
+  else selectShade(shade);
+  $('edit').style.cursor = t === 'picker' ? 'copy' : 'crosshair';
+}
+
+function buildPalette() {
+  const sw = $('swatches');
+  const clear = document.createElement('div');
+  clear.className = 'sw clear';
+  clear.title = 'erase (0)';
+  clear.dataset.step = CLEAR;
+  clear.addEventListener('click', () => selectTool('eraser'));
+  sw.appendChild(clear);
+  KEY_GRAYS.forEach((v, i) => {
+    const el = document.createElement('div');
+    el.className = 'sw';
+    el.style.background = `rgb(${v},${v},${v})`;
+    el.style.color = i > 2 ? '#555' : '#aaa';
+    el.textContent = i;
+    el.title = `step ${i} — gray ${v} (${i + 1})`;
+    el.dataset.step = i;
+    el.addEventListener('click', () => { selectTool('pencil'); selectShade(i); });
+    sw.appendChild(el);
+  });
+
+  for (const [t, label] of [['pencil', 'Pencil'], ['eraser', 'Eraser'], ['fill', 'Fill'], ['picker', 'Pick']]) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.dataset.tool = t;
+    b.addEventListener('click', () => selectTool(t));
+    $('tools').appendChild(b);
+  }
+  selectTool('pencil');
+  selectShade(4);
+}
+
+window.addEventListener('keydown', (ev) => {
+  if (ev.target.matches('input, select, textarea')) return;
+  const cmd = ev.metaKey || ev.ctrlKey;
+  if (cmd && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); return; }
+  if (cmd && ev.key.toLowerCase() === 's') { ev.preventDefault(); save(); return; }
+  if (cmd) return;
+  if (ev.key === '0') { selectTool('eraser'); return; }
+  if ('12345'.includes(ev.key)) { selectTool('pencil'); selectShade(Number(ev.key) - 1); return; }
+  const byKey = { b: 'pencil', e: 'eraser', g: 'fill', i: 'picker' };
+  if (byKey[ev.key.toLowerCase()]) selectTool(byKey[ev.key.toLowerCase()]);
+});
+
+function undo() {
+  const prev = undos.pop();
+  if (!prev) return;
+  steps = prev;
+  repaint();
+  refreshComposite();
+}
+
+// ── load / save ─────────────────────────────────────────────────────────────
+async function loadLayer(name) {
+  const data = await (await fetch(`/api/layer/${name}?t=${Date.now()}`)).json();
+  steps = Int8Array.from(data.steps);
+  saved = Int8Array.from(data.steps);
+  undos.length = 0;
+  $('layerName').textContent = `${name}.png`;
+  $('saveMsg').innerHTML = data.exists ? '&nbsp;' : '<span class="note">new overlay — nothing on disk yet</span>';
+  repaint();
+}
+
+async function save() {
+  const name = $('layer').value;
+  const res = await fetch(`/api/layer/${name}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ steps: [...steps] }),
+  });
+  const body = await res.json();
+  if (!res.ok) { $('saveMsg').innerHTML = `<span class="warn">${body.error}</span>`; return; }
+  saved = Int8Array.from(steps);
+  nonce = Date.now();
+  meta = await (await fetch('/api/meta')).json();
+  $('saveMsg').innerHTML = `<span class="ok">saved ${body.path}</span>`;
+  repaint();
+  render();
+}
+
+$('save').addEventListener('click', save);
+$('undo').addEventListener('click', undo);
+$('revert').addEventListener('click', () => loadLayer($('layer').value));
+
+// ── composite preview ───────────────────────────────────────────────────────
 function params(extra = {}) {
   const p = new URLSearchParams({
     klass: $('klass').value,
@@ -158,14 +443,35 @@ function params(extra = {}) {
   return p;
 }
 
+/** The hero preview posts the unsaved art along with the look, so a stroke
+ *  lands on the character without touching disk first. */
+async function refreshComposite() {
+  const res = await fetch('/api/sprite.png', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      params: Object.fromEntries(params()),
+      draft: { layer: $('layer').value, steps: [...steps] },
+    }),
+  });
+  if (!res.ok) { $('status').innerHTML = `<span class="warn">${(await res.json()).error}</span>`; return; }
+  const missing = res.headers.get('X-Missing-Layers');
+  const scale = Number($('zoom').value);
+  $('hero').src = URL.createObjectURL(await res.blob());
+  $('hero').width = $('hero').height = SIZE * scale;
+  $('status').innerHTML = missing && missing !== 'none'
+    ? `<span class="warn">No art yet for: ${missing}</span> — pick one in <b>Editing</b> and draw it.`
+    : `Drawn overlays: ${meta.drawn.length ? meta.drawn.join(', ') : '(none)'}`;
+}
+
 function cell(p, caption, scale = 3) {
   const div = document.createElement('div');
   div.className = 'cell';
   const img = document.createElement('img');
-  img.className = 'pix';
+  img.className = 'pix checker';
   p.set('scale', String(scale));
   img.src = `/api/sprite.png?${p}`;
-  img.width = img.height = 64 * scale;
+  img.width = img.height = SIZE * scale;
   div.appendChild(img);
   const cap = document.createElement('div');
   cap.className = 'cap';
@@ -179,52 +485,54 @@ async function render() {
   $('zoomv').textContent = scale;
   $('stage').classList.toggle('guides', $('guides').checked);
 
-  // fetch (not <img src>) so the missing-layer header can be reported — a bare
-  // body when you expected a sword is the single most confusing failure here.
-  const res = await fetch(`/api/sprite.png?${params()}`);
-  if (!res.ok) {
-    $('status').innerHTML = `<span class="warn">${(await res.json()).error}</span>`;
-    return;
-  }
-  const missing = res.headers.get('X-Missing-Layers');
-  $('hero').src = URL.createObjectURL(await res.blob());
-  $('hero').width = $('hero').height = 64 * scale;
-
   const guideUrl = `/api/pose-guide.png?klass=${$('klass').value}&scale=${scale}&t=${nonce}`;
   $('guideImg').src = guideUrl;
-  $('guideImg').width = $('guideImg').height = 64 * scale;
+  $('guideImg').width = $('guideImg').height = SIZE * scale;
   $('guideDl').href = `/api/pose-guide.png?klass=${$('klass').value}&scale=1`;
 
-  const drawn = new Set(meta.drawn);
-  const wanted = $('arch').value;
-  $('status').innerHTML = missing && missing !== 'none'
-    ? `<span class="warn">No art yet for: ${missing}</span> — draw <code>${missing.split(',')[0]}.png</code> and hit Reload.`
-    : `Drawn overlays: ${meta.drawn.length ? meta.drawn.join(', ') : '(none)'}`;
+  guideReady = false;
+  guideImg = new Image();
+  guideImg.onload = () => { guideReady = true; repaint(); };
+  guideImg.src = `/api/pose-guide.png?klass=${$('klass').value}&scale=1&t=${nonce}`;
 
   const mat = meta.materials.find((m) => m.id === $('mat').value);
   $('rampBox').innerHTML = mat?.ramp
     ? `<div class="note" style="margin-top:8px">${mat.name} ramp</div>
        <div class="ramp">${mat.ramp.map((c) => `<span style="background:${c}"></span>`).join('')}</div>` : '';
 
-  $('rawBox').innerHTML = drawn.has(wanted)
-    ? `<img class="pix" src="/gear/${wanted}.png?t=${nonce}" width="192" height="192"
-            style="background:#333;border:1px solid var(--line);border-radius:4px" />
-       <div style="margin-top:4px">${wanted}.png — the grayscale source</div>`
-    : `<span class="warn">${wanted}.png not drawn yet</span>`;
+  await refreshComposite();
+  repaint();
 
-  // Contact sheets: the two comparisons that actually catch bad art — the same
-  // shape across every material it can be made of, and the FX passes on top.
   $('matSheet').innerHTML = '';
   for (const m of materialsFor($('arch').value)) {
     $('matSheet').appendChild(cell(params({ mainhand: `${m.id}_${$('arch').value}` }), m.name));
   }
   $('fxSheet').innerHTML = '';
-  for (const r of meta.rarities) {
-    $('fxSheet').appendChild(cell(params({ rarity: r.id, brand: null }), r.id));
+  for (const r of meta.rarities) $('fxSheet').appendChild(cell(params({ rarity: r.id, brand: null }), r.id));
+  for (const b of meta.brands) $('fxSheet').appendChild(cell(params({ brand: b.id }), b.id.replace('_damage', '')));
+}
+
+/** Editing an overlay you can't see on the character is the one confusing state
+ *  here, so picking a layer equips something that shows it. */
+function equipForLayer(name) {
+  const [slot, weight] = name.split('_');
+  if (slot === 'chest' || slot === 'helmet') {
+    const sel = slot === 'chest' ? 'chestMat' : 'helmMat';
+    const m = meta.materials.find((m) => m.armor_tag === weight);
+    if (m) $(sel).value = m.id;
+    return;
   }
-  for (const b of meta.brands) {
-    $('fxSheet').appendChild(cell(params({ brand: b.id }), b.id.replace('_damage', '')));
+  if ([...$('arch').options].some((o) => o.value === name)) {
+    $('arch').value = name;
+    fillMaterials();
   }
+}
+
+function fillMaterials() {
+  const keep = $('mat').value;
+  $('mat').innerHTML = '';
+  for (const m of materialsFor($('arch').value)) $('mat').appendChild(opt(m.id, m.name));
+  if ([...$('mat').options].some((o) => o.value === keep)) $('mat').value = keep;
 }
 
 async function init() {
@@ -235,13 +543,6 @@ async function init() {
   for (const r of meta.rarities) $('rarity').appendChild(opt(r.id, r.id));
   $('brand').appendChild(opt('', '(none)'));
   for (const b of meta.brands) $('brand').appendChild(opt(b.id, b.id.replace('_damage', '')));
-
-  const fillMaterials = () => {
-    const keep = $('mat').value;
-    $('mat').innerHTML = '';
-    for (const m of materialsFor($('arch').value)) $('mat').appendChild(opt(m.id, m.name));
-    if ([...$('mat').options].some((o) => o.value === keep)) $('mat').value = keep;
-  };
   fillMaterials();
 
   for (const [sel, slot] of [['chestMat', 'chest'], ['helmMat', 'helmet']]) {
@@ -249,15 +550,35 @@ async function init() {
     for (const m of materialsFor(slot)) $(sel).appendChild(opt(m.id, m.name));
   }
 
+  const drawn = new Set(meta.drawn);
+  for (const n of layerNames()) $('layer').appendChild(opt(n, drawn.has(n) ? n : `${n} (empty)`));
+  // Open on something that already has art, so the first thing you see is a
+  // working composite rather than a bare body.
+  const firstDrawn = layerNames().find((n) => drawn.has(n));
+  if (firstDrawn) $('layer').value = firstDrawn;
+
+  buildPalette();
+
+  $('layer').addEventListener('change', async () => {
+    if (dirty() && !confirm('Discard unsaved changes to this overlay?')) return;
+    equipForLayer($('layer').value);
+    await loadLayer($('layer').value);
+    render();
+  });
   $('arch').addEventListener('change', () => { fillMaterials(); render(); });
-  for (const id of ['klass', 'color', 'mat', 'rarity', 'brand', 'chestMat', 'helmMat', 'zoom', 'guides']) {
-    $(id).addEventListener('input', render);
+  for (const id of ['klass', 'color', 'mat', 'rarity', 'brand', 'chestMat', 'helmMat', 'zoom', 'guides', 'grid']) {
+    $(id).addEventListener('input', () => { repaint(); render(); });
   }
   $('reload').addEventListener('click', async () => {
     nonce = Date.now();
     meta = await (await fetch('/api/meta')).json();
+    await loadLayer($('layer').value);
     render();
   });
+  window.addEventListener('beforeunload', (ev) => { if (dirty()) ev.preventDefault(); });
+
+  equipForLayer($('layer').value);
+  await loadLayer($('layer').value);
   render();
 }
 
