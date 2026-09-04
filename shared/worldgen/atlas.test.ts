@@ -115,3 +115,59 @@ describe('dungeon site placement', () => {
     expect(full.settlements).toEqual(bare.settlements);
   });
 });
+
+// An authored exterior (DungeonDef.footprint) needs room for the whole camp, not
+// just a standable entrance tile — see docs/plan-poi-authoring.md gap 3.
+describe('footprint-scale placement', () => {
+  const camp: DungeonDef[] = [{
+    id: 'raider_camp', name: 'Raider Camp',
+    placement: { min_level: 5, max_level: 10 },
+    zone: { biome: 'cave' },
+    footprint: { biome: 'wild', width: 64, height: 64 },
+  } as DungeonDef];
+
+  // The hard promise the roster makes: every entry is placed EVERY epoch, or a
+  // discovered site goes missing for a day and the map lies. A large footprint
+  // is the thing most likely to break it.
+  it('places a 64x64 footprint in every epoch', () => {
+    for (let epoch = 0; epoch < 60; epoch++) {
+      const atlas = buildAtlas(epochSeed('camp', epoch), 'zone_0_0', camp, epoch);
+      expect(atlas.sites, `epoch ${epoch}`).toHaveLength(1);
+    }
+  });
+
+  it('keeps most of the footprint off water and mountain', () => {
+    for (let epoch = 0; epoch < 30; epoch++) {
+      const atlas = buildAtlas(epochSeed('camp', epoch), 'zone_0_0', camp, epoch);
+      const site = atlas.sites[0]!;
+      const seeds = deriveSeeds(atlas.numericSeed);
+      let open = 0;
+      let total = 0;
+      for (let dy = -32; dy < 32; dy += 6) {
+        for (let dx = -32; dx < 32; dx += 6) {
+          const t = wildTileAt(site.worldX + dx, site.worldY + dy, seeds);
+          total++;
+          if (t !== 'water' && t !== 'swamp_water' && t !== 'rock') open++;
+        }
+      }
+      expect(open / total, `epoch ${epoch} at (${site.worldX}, ${site.worldY})`).toBeGreaterThanOrEqual(0.8);
+    }
+  });
+
+  it('drops the entrance outcrop when an exterior is authored', () => {
+    const withCamp = buildAtlas(epochSeed('camp', 1), 'zone_0_0', camp, 1);
+    const bare = buildAtlas(epochSeed('camp', 1), 'zone_0_0', [{ ...camp[0]!, footprint: undefined }], 1);
+    expect(bare.stamps.length).toBeGreaterThan(withCamp.stamps.length);
+  });
+
+  // Two big camps spaced by an entrance pixel would overlap outright.
+  it('spaces sites by their own size', () => {
+    const two: DungeonDef[] = [camp[0]!, { ...camp[0]!, id: 'other_camp', name: 'Other Camp' }];
+    for (let epoch = 0; epoch < 20; epoch++) {
+      const atlas = buildAtlas(epochSeed('camp', epoch), 'zone_0_0', two, epoch);
+      expect(atlas.sites, `epoch ${epoch}`).toHaveLength(2);
+      const [a, b] = atlas.sites as [typeof atlas.sites[0], typeof atlas.sites[0]];
+      expect(Math.hypot(a.worldX - b.worldX, a.worldY - b.worldY), `epoch ${epoch}`).toBeGreaterThan(64);
+    }
+  });
+});
