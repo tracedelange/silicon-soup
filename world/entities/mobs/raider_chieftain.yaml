@@ -1,20 +1,29 @@
 id: raider_chieftain
 name: Vurn the Coldhand
 sprite: bandit_01
-draw_scale: 1.8
+draw_scale: 1.3
 level: 10
-level_range: [10, 10]
+level_range:
+  - 10
+  - 10
 role: soldier
-speed: 1.0
+speed: 2
 behavior: aggressive
 aggro_range: 7
 leash_radius: 14
 unique: true
 hp: 340
 xp: 400
-stats: { strength: 18, constitution: 16, dexterity: 12, intelligence: 8 }
-loot_affinity: [weapon, blade]
+stats:
+  strength: 18
+  constitution: 16
+  dexterity: 12
+  intelligence: 8
+loot_affinity:
+  - weapon
+  - blade
 dialogue:
-  - "You walked in. Nobody walks out."
+  - You walked in. Nobody walks out.
 abilities:
-  - { ability: shieldbash, weight: 3 }
+  - ability: shieldbash
+    weight: 3

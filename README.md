@@ -73,8 +73,18 @@ acks, not response events.
 | Entities | per-zone room | per-**chunk** room (`wild:cx,cy`), 32×32 tiles |
 | Entry | portals | portal tile in the village → world tile `(0,8)` |
 
+A **site exterior** straddles the two. It is *authored* as a ZoneDef — so it
+keeps the whole gen-op pipeline, prefabs and every editor tool — and *runs* as a
+`grid` stamp painted onto the field, physically present in the open world rather
+than a place you portal into. `server/game/mapgen/bake.ts` is the seam, and is
+the only module allowed to be: the editor's preview and the runtime atlas bake
+both call it, so a preview cannot drift from what ships. Authored entities in the
+wild come from the same place (`server/game/siteSpawns.ts`) and address regions
+by NAME, never by coordinate, because a footprint's arrangement re-rolls with the
+epoch. See `docs/plan-poi-authoring.md`.
+
 The wilderness determinism contract is load-bearing: `shared/worldgen/`
-(`noise.ts`, `field.ts`, `atlas.ts`, `config.ts`) is imported by client *and*
+(`noise.ts`, `field.ts`, `atlas.ts`, `config.ts`, `stamps.ts`, `epoch.ts`) is imported by client *and*
 server, so both derive byte-identical terrain. Never move wilderness generation
 into `server/`. Difficulty is radial — `dangerAt(x,y)` rises with distance from
 origin and plateaus at `DANGER_RADIUS`, so distance **is** the progression
@@ -227,7 +237,7 @@ opt into writes and real calls.
 | Path | Format | Notes |
 |---|---|---|
 | `zones/*.json` | `ZoneDef` | biome + seed + `features[]` + `post_ops[]`; grid is derived |
-| `dungeons/*.json` | `DungeonDef` | roster: placement metadata + a seedless zone template, instanced per epoch |
+| `dungeons/*.json` | `DungeonDef` | roster: placement metadata, a seedless interior template, and an optional `footprint` (an exterior baked onto the open world) — all instanced per epoch |
 | `entities/mobs/*.yaml` | `MobTemplate` | role, stats, sprite, resistances, weighted ability kit, loot table, dialogue |
 | `entities/items/bases/*.yaml` | `ItemBase` | hand-authored bases |
 | `entities/items/{archetypes,materials,affixes/}` | — | procedural base composition: archetype × material, + prefix/suffix pools |

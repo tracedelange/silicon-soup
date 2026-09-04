@@ -67,6 +67,7 @@ import { beachN, beachS, beachE, beachW, beachNE, beachNW, beachSE, beachSW } fr
 import { riverVariants, bridgeVariants, RIVER_CODES, BRIDGE_CODES } from './river.ts';
 import { wildernessBorder } from './wilderness_border.ts';
 import { buildingPlots } from './building_plots.ts';
+import { bossChamber }   from './boss_chamber.ts';
 
 export const FEATURE_REGISTRY: Record<string, FeatureOperator> = {
   fountain,
@@ -79,6 +80,7 @@ export const FEATURE_REGISTRY: Record<string, FeatureOperator> = {
   wall_gates:     wallGates,
   wilderness_border: wildernessBorder,
   building_plots: buildingPlots,
+  boss_chamber:   bossChamber,
   beach_N:  beachN,
   beach_S:  beachS,
   beach_E:  beachE,

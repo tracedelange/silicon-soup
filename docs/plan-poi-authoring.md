@@ -264,7 +264,7 @@ it to a `SiteDef`. `planRotation` already takes a `siteIds` list
 (`server/game/rotation.ts:38`), so feeding it every member zone id is a call-site
 change.
 
-### 7b. Guaranteeing the boss chamber — **S, engine**
+### 7b. Guaranteeing the boss chamber — **S, engine. DONE — and the plan was wrong twice.**
 
 Re-rolled internals raise one sharp failure mode: the generator produces a layout
 with nowhere for the boss to be, and the fight silently doesn't exist that day.
@@ -302,6 +302,33 @@ prefab arena (Consequence 2).
 
 This same operator is the reusable answer for anything that must exist every
 epoch — the great tent, a chest vault, a quest-giver's post.
+
+**What the above got wrong, found by testing it.**
+
+1. **A reserve-phase claim does not survive `bsp`.** The reasoning above holds
+   for the *village* pipeline, where `scatter_sites` consults keepout before it
+   places. `bsp` predates the keepout layer: it fills its whole region with wall
+   and then carves rooms, so it buried the chamber wholesale. `claim` had to be
+   taught to `bsp`'s wall pass, or it would mean everything in a scatter-based
+   zone and nothing in a BSP one. `boss_chamber.test.ts` keeps that honest with a
+   negative control — strip the claim and the chamber comes back walled over.
+2. **A rect claim alone is not enough for a scatter.** A claim protects the
+   *point* a scatter picks; a prefab stamped on that point spreads from it, so a
+   building still clips the corner of what the claim was meant to protect. In the
+   raider camp, `claim` alone changed nothing measurable (17 clipped huts of ~300
+   either way). `claim_margin` — reserve the rect plus a ring — takes it to zero
+   without costing a single hut (4.9 placed per epoch vs 5.0).
+
+So gap 7b was three ops, not one field, and the phases are the design:
+`region` in **reserve** (cannot fail → the region always exists; the claim keeps
+it open) and `ensure_reach` in **decorate** (reserving space inside a dungeon can
+wall it off; without this the chamber exists, is open, and cannot be walked to).
+`server/game/mapgen/features/boss_chamber.ts` bundles them.
+
+Placement is deliberately `at: { center: true }` rather than "far from the
+entrance": distance is not expressible coordinate-free, and it is not the
+guarantee that matters. Since a reserved chamber is never one of the rooms `bsp`
+generates, arrival is never inside it — which was the actual failure.
 
 ### 8. Chests do not exist — **M, engine + tooling. DEFERRED, spec'd here.**
 
@@ -473,8 +500,10 @@ Each step is independently useful; nothing later is blocked on a big-bang.
    materialize/despawn/respawn; the procedural roll steps around a footprint
    entirely. Hot-reload of a baked exterior came with it.
 4. **(5) + (7) + (7b) portals, multi-zone sites, and the reserved boss chamber.**
-   The interior opens up. (7b) is small and should land with the first re-rolled
-   interior, not after it.
+   ~~(7b)~~ **done** — `boss_chamber` feature operator, plus `claim` /
+   `claim_margin` / `tags` on the `region` op and keepout awareness in `bsp`.
+   (5)'s single-portal case fell out of the bake centring a footprint on its site
+   tile. **(7) multi-zone sites is what remains** of this step.
 5. ~~**(10) full mob editor** + combat-sim panel.~~ **Done.** 32 of 35
    `MobTemplate` fields, generated from a spec; ability kit picker with the
    registry's own cooldowns; a combat profile panel sharing
