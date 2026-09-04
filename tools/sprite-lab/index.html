@@ -100,8 +100,9 @@
             stops, and rarity rings the silhouette.</li>
           <li>Full width, 64×64 — a weapon is asymmetric, so it can't use the
             body's left-half mirror.</li>
-          <li>Align to the pose guide: head rows 3–13, shoulders 14, hands
-            19–20, belt 20–22, feet 29 (in the body's 32-row grid).</li>
+          <li>Align to the anchors marked on the grid — the magenta bands are
+            the body's landmark rows, and the cyan boxes are the hand columns a
+            grip has to land in.</li>
         </ol>
         Saving writes <code>client/public/gear/&lt;layer&gt;.png</code>. There's no
         registry to update — the file appearing is what makes an overlay real.
@@ -136,6 +137,7 @@
           <div class="tools" id="tools"></div>
           <div class="row">
             <label class="row"><input type="checkbox" id="grid" checked /> grid</label>
+            <label class="row"><input type="checkbox" id="anchors" checked /> anchors</label>
             <button id="undo" disabled>Undo</button>
             <button id="revert">Revert</button>
             <button class="primary" id="save" disabled>Save</button>
@@ -213,6 +215,8 @@ function repaint() {
     c.globalAlpha = 1;
   }
 
+  if ($('anchors').checked) drawAnchorBands(c, z);
+
   for (let p = 0; p < steps.length; p++) {
     const s = steps[p];
     if (s < 0) continue;
@@ -220,6 +224,8 @@ function repaint() {
     c.fillStyle = `rgb(${v},${v},${v})`;
     c.fillRect((p % SIZE) * z, Math.floor(p / SIZE) * z, z, z);
   }
+
+  if ($('anchors').checked) drawAnchorLines(c, z);
 
   if ($('grid').checked && z >= 5) {
     c.strokeStyle = 'rgba(255,255,255,.07)';
@@ -241,6 +247,69 @@ function repaint() {
   $('dirty').innerHTML = dirty() ? '<span class="dirty">• unsaved</span>' : '';
   $('save').disabled = !dirty();
   $('undo').disabled = !undos.length;
+}
+
+// The pose contract, drawn on the grid itself rather than left to the ghosted
+// body: which rows an overlay has to line up with, and which columns the hand
+// occupies. Both come from shared/playerComposite.ts via /api/meta, so they
+// can't drift from what the compositor actually does.
+const ANCHOR_RGB = '255,64,196';
+const HAND_RGB = '90,220,255';
+
+/** GRID rows are 2 canvas pixels tall (the body is a 32-grid at 2px cells). */
+function rowScale() { return SIZE / (meta?.grid ?? 32); }
+
+function anchorRect(a, z) {
+  const k = rowScale();
+  return { y: a.from * k * z, h: (a.to - a.from + 1) * k * z };
+}
+
+function drawAnchorBands(c, z) {
+  for (const a of meta.poseAnchors) {
+    const { y, h } = anchorRect(a, z);
+    c.fillStyle = `rgba(${ANCHOR_RGB},.10)`;
+    c.fillRect(0, y, SIZE * z, h);
+  }
+  const hands = meta.handColumns?.[$('klass').value];
+  if (!hands) return;
+  const a = meta.poseAnchors.find((a) => a.label === 'hands');
+  if (!a) return;
+  const { y, h } = anchorRect(a, z);
+  const k = rowScale();
+  c.fillStyle = `rgba(${HAND_RGB},.20)`;
+  for (const [x0, x1] of [hands.left, hands.right]) {
+    c.fillRect(x0 * k * z, y, (x1 - x0 + 1) * k * z, h);
+  }
+}
+
+function drawAnchorLines(c, z) {
+  c.lineWidth = 1;
+  c.font = '11px -apple-system, system-ui, sans-serif';
+  c.textBaseline = 'middle';
+  for (const a of meta.poseAnchors) {
+    const { y, h } = anchorRect(a, z);
+    c.strokeStyle = `rgba(${ANCHOR_RGB},.55)`;
+    for (const at of [y, y + h]) {
+      c.beginPath(); c.moveTo(0, at + .5); c.lineTo(SIZE * z, at + .5); c.stroke();
+    }
+    // Label rides just inside the band, on a dark plate so it stays readable
+    // over both white blade pixels and empty canvas.
+    const w = c.measureText(a.label).width + 6;
+    c.fillStyle = 'rgba(10,12,16,.8)';
+    c.fillRect(1, y + h / 2 - 8, w, 16);
+    c.fillStyle = `rgb(${ANCHOR_RGB})`;
+    c.fillText(a.label, 4, y + h / 2);
+  }
+
+  const hands = meta.handColumns?.[$('klass').value];
+  const a = meta.poseAnchors.find((a) => a.label === 'hands');
+  if (!hands || !a) return;
+  const { y, h } = anchorRect(a, z);
+  const k = rowScale();
+  c.strokeStyle = `rgba(${HAND_RGB},.85)`;
+  for (const [x0, x1] of [hands.left, hands.right]) {
+    c.strokeRect(x0 * k * z + .5, y + .5, (x1 - x0 + 1) * k * z - 1, h - 1);
+  }
 }
 
 function cellAt(ev) {
@@ -566,7 +635,7 @@ async function init() {
     render();
   });
   $('arch').addEventListener('change', () => { fillMaterials(); render(); });
-  for (const id of ['klass', 'color', 'mat', 'rarity', 'brand', 'chestMat', 'helmMat', 'zoom', 'guides', 'grid']) {
+  for (const id of ['klass', 'color', 'mat', 'rarity', 'brand', 'chestMat', 'helmMat', 'zoom', 'guides', 'grid', 'anchors']) {
     $(id).addEventListener('input', () => { repaint(); render(); });
   }
   $('reload').addEventListener('click', async () => {

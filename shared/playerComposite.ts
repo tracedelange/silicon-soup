@@ -165,6 +165,34 @@ const CLASS_COLORS: Record<ClassId, Record<string, string>> = {
   wizard: { s: '#e6c39a', S: '#c49b6f', h: '#ddd8ce' },
 };
 
+/** The body's arm span at the hand rows, in GRID columns — where a weapon's
+ *  grip has to land. Derived from the template rather than declared, so
+ *  redrawing a body moves the marker with it instead of silently lying.
+ *
+ *  Arms read as outline-flanked runs at the outer edge of the hand rows
+ *  (`......oGGoGggggL`), so the span is the first lit column inward to the
+ *  second outline cell. Returns null if a template has no hands anchor or no
+ *  such run, which is a reason to show no marker, not to throw.
+ */
+export function handColumns(klass: ClassId): { left: [number, number]; right: [number, number] } | null {
+  const hands = POSE_ANCHORS.find((a) => a.label === 'hands');
+  const rows = TEMPLATES[klass in TEMPLATES ? klass : 'fighter'];
+  const row = hands ? rows[hands.from] : undefined;
+  if (!row) return null;
+
+  const from = [...row].findIndex((ch) => ch !== '.');
+  if (from < 0) return null;
+  let outlines = 0;
+  let to = from;
+  for (let x = from; x < row.length; x++) {
+    if (row[x] === '.') return null;
+    if (row[x] === 'o' && ++outlines === 2) { to = x; break; }
+  }
+  if (outlines < 2) return null;
+  // The right arm is the left one mirrored about the grid centre.
+  return { left: [from, to], right: [GRID - 1 - to, GRID - 1 - from] };
+}
+
 export type RGB = readonly [number, number, number];
 
 const DEFAULT_COLOR = '#6ec6f0'; // server default, used when a player has none

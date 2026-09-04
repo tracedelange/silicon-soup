@@ -26,8 +26,10 @@ workbench picks up an externally-saved file on *Reload from disk*.
   rarity rings the silhouette. Painting in color fights all three.
 - **Align to the pose contract** — head rows 3-13, shoulders 14, hands 19-20,
   belt 20-22, feet 29, in the body's 32-row grid (so double for 64px rows).
-  `POSE_ANCHORS` in `shared/playerComposite.ts` is the source of truth; the
-  workbench draws it under the canvas, and
+  `POSE_ANCHORS` in `shared/playerComposite.ts` is the source of truth. The
+  workbench draws those bands directly on the editor grid, along with the hand
+  columns a grip must land in (derived from the template by `handColumns`, so
+  redrawing a body moves the marker with it), and
   `http://localhost:3005/api/pose-guide.png?klass=fighter&scale=1` exports it as
   a reference layer for Aseprite. `keys.gpl` here is the palette.
 

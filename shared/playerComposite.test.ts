@@ -3,7 +3,7 @@ import { rampFor } from './itemVisuals.ts';
 import type { GearVisual } from './itemVisuals.ts';
 import {
   GRID, POSE_ANCHORS, RAMP_STOPS, SPRITE_SIZE, TEMPLATES,
-  buildPalette, expandRow, renderComposite,
+  buildPalette, expandRow, handColumns, renderComposite,
 } from './playerComposite.ts';
 import type { ClassId } from './types.ts';
 
@@ -156,5 +156,35 @@ describe('rarity glow', () => {
     const plain = renderComposite({ klass: 'fighter' }, [band({ layer: 'test', ramp })]);
     expect(plain).toEqual(renderComposite({ klass: 'fighter' }, [band({ layer: 'test', ramp })]));
     expect(px(plain, 9, 0)[3]).toBe(0);
+  });
+});
+
+describe('handColumns', () => {
+  it('finds an arm span inside the grid for every class', () => {
+    for (const k of CLASSES) {
+      const hands = handColumns(k);
+      expect(hands, k).not.toBeNull();
+      const { left, right } = hands!;
+      expect(left[0], k).toBeGreaterThanOrEqual(0);
+      expect(left[1], k).toBeGreaterThan(left[0]);
+      expect(right[1], k).toBeLessThan(GRID);
+    }
+  });
+
+  it('mirrors the two arms about the grid centre, as the template does', () => {
+    for (const k of CLASSES) {
+      const { left, right } = handColumns(k)!;
+      expect([GRID - 1 - right[1], GRID - 1 - right[0]], k).toEqual(left);
+    }
+  });
+
+  // The whole point of the marker: a grip drawn there must land on the body.
+  it('lands on lit template cells at the hand rows', () => {
+    const hands = POSE_ANCHORS.find((a) => a.label === 'hands')!;
+    for (const k of CLASSES) {
+      const { left } = handColumns(k)!;
+      const row = expandRow(TEMPLATES[k][hands.from]!);
+      for (let x = left[0]; x <= left[1]; x++) expect(row[x], `${k} col ${x}`).not.toBe('.');
+    }
   });
 });

@@ -15,7 +15,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, rarityColor } from '../../shared/itemVisuals.ts';
-import { GRID, POSE_ANCHORS, SPRITE_SIZE, TEMPLATES, renderComposite } from '../../shared/playerComposite.ts';
+import { GRID, POSE_ANCHORS, SPRITE_SIZE, TEMPLATES, handColumns, renderComposite } from '../../shared/playerComposite.ts';
 import type { ClassId, Equipment, InventoryStack } from '../../shared/types.ts';
 import {
   GEAR_DIR, LayerSizeError, TRANSPARENT, loadGearLayer, pixelsToSteps,
@@ -57,6 +57,10 @@ app.get('/api/meta', (_req, res) => {
     rarities: ['common', 'uncommon', 'rare', 'legendary'].map((r) => ({ id: r, color: rarityColor(r) })),
     brands: Object.entries(BRAND_COLORS).map(([id, color]) => ({ id, color })),
     poseAnchors: POSE_ANCHORS,
+    // Per class, since each body's arms sit at slightly different columns.
+    handColumns: Object.fromEntries(
+      Object.keys(TEMPLATES).map((k) => [k, handColumns(k as ClassId)]),
+    ),
     grid: GRID,
     spriteSize: SPRITE_SIZE,
     drawn: drawnLayers(),
