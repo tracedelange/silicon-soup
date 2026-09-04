@@ -37,8 +37,8 @@ function nearestWalkable(
   return null;
 }
 
-const DEFAULT_RESPAWN_SECONDS = 120;
-const TICKS_PER_SECOND = 10;
+export const DEFAULT_RESPAWN_SECONDS = 120;
+export const TICKS_PER_SECOND = 10;
 const RESPAWN_RETRY_TICKS = 20;
 
 interface ZoneRuntime extends ZoneGrid { def: ZoneDef }

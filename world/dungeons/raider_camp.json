@@ -78,6 +78,23 @@
         ],
         "through_cost": 1
       }
+    ],
+    "spawns": [
+      {
+        "entity": "highway_thug",
+        "count": 4,
+        "respawn_seconds": 180
+      },
+      {
+        "entity": "bandit_archer",
+        "count": 3,
+        "respawn_seconds": 180
+      },
+      {
+        "entity": "torch",
+        "region": "great_tent",
+        "count": 2
+      }
     ]
   },
   "zone": {
@@ -106,7 +123,7 @@
     ],
     "spawns": [
       {
-        "entity": "bandit",
+        "entity": "highway_thug",
         "region": "cave_main",
         "count": 5,
         "respawn_seconds": 120
@@ -116,6 +133,13 @@
         "region": "cave_main",
         "count": 3,
         "respawn_seconds": 120
+      },
+      {
+        "entity": "raider_chieftain",
+        "region": "cave_main",
+        "count": 1,
+        "spawn_id": "raider_camp_boss",
+        "respawn_seconds": 600
       }
     ]
   }

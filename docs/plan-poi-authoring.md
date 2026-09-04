@@ -176,29 +176,53 @@ rather than a correctness one — a camp half in the ocean still *works*. But 24
 attempts in a 160–400 annulus gets tight with a large footprint, so expect to
 relax the biome theming earlier than the current last-third rule.
 
-### 4. Authored entities in the wilderness — **L, engine. The big one.**
+### 4. Authored entities in the wilderness — **L, engine. DONE.**
 
-This is the largest single item, and the one that decides whether the camp reads
-as a place or as a terrain decal.
+The largest single item, and the one that decides whether the camp reads as a
+place or as a terrain decal.
 
-Wild mobs come from exactly one source today: `Wilderness.materializeChunk`, a
-per-chunk procedural roll against a roster. And `isHuntable`
-(`server/game/wilderness.ts:31`) **explicitly denylists** `npc`, `friendly`,
-`fixture`, `sign`, `inert`, `shop`, `trainer`, and board-carrying templates —
-"quest-givers/villagers, kept out of the wilderness on purpose." That is exactly
-the quest-giver, the torches, and the notice board a camp needs.
+Wild mobs came from exactly one source: `Wilderness.materializeChunk`, a
+per-chunk procedural roll against a roster. And `isHuntable` **explicitly
+denylists** `npc`, `friendly`, `fixture`, `sign`, `inert`, `shop`, `trainer`, and
+board-carrying templates — "quest-givers/villagers, kept out of the wilderness on
+purpose." That is exactly the quest-giver, the torches, and the notice board a
+camp needs.
 
-Do not loosen that filter; it is right for the procedural path. Add a second
-source:
+That filter was left alone — it is right for the procedural path. The second
+source is `server/game/siteSpawns.ts`:
 
-- authored spawn records on the site, in **footprint-local** coords, using the
-  existing `ZoneSpawn` vocabulary against the baked `bounds`;
-- a footprint-overlap branch in `materializeChunk` that translates local → signed
-  world tiles and bypasses the roster entirely;
-- respawn timers per authored spawn — `World._rebuildZone` does this for grid
-  zones, the wild has no equivalent;
-- despawn/re-materialize on chunk unload. Rotation is nearly free: the existing
-  cull already removes every non-player entity in the wild.
+- **The authoring surface is the footprint's own `spawns` array.** No new
+  vocabulary: `ZoneSpawn` already has `region`, `area`, `at`, `count`, `level`,
+  `respawn_seconds`, `spawn_id`, and the editor already draws all of them.
+- **Resolution is deterministic in (site, epoch)** and runs against the baked
+  `bounds`, so the same epoch puts the same camp population in the same places.
+  That is what lets a chunk be despawned when nobody is looking and materialized
+  again identically when someone returns.
+- **By region, never by coordinate** (Consequence 1). A named region that did not
+  generate this epoch *warns and skips* rather than silently vanishing — the
+  failure the editor's epoch sweep exists to catch, made loud at runtime too.
+  `at` survives as the sconce escape hatch: exact, unfiltered, may sit on a wall.
+- **Respawn.** `World.tickRespawns` iterates `defs.zones` and `WILD` is not one
+  of them, so the wild got its own hook (`GameLoop.onWildRespawn` →
+  `Wilderness.tickSiteSpawns`). Only *observed* chunks are ticked; an unobserved
+  one has been despawned wholesale and re-materializes identically anyway.
+- **Despawning is not dying.** The unload path forgets an authored entity while
+  it still exists, which is how "put it back" is told apart from "start the
+  respawn clock" — otherwise walking away from a camp and back would leave it
+  empty for the respawn interval. Mid-fight survivors are skipped, or the
+  re-materialize would stack a second copy on the first.
+- **The procedural roll now avoids a footprint whole**, transparent cells
+  included. Those cells are the gaps *between* the tents; a wandering band mob in
+  there undercuts the authorship the camp exists for.
+
+Rotation was nearly free, as expected: the existing cull removes every non-player
+wild entity, and the plan is re-resolved for the new epoch alongside it.
+
+**Bonus: hot-reload is back.** The cost section below flagged that a baked
+exterior loses hot-reload, since the watcher rebuilds *zones* and a footprint
+lives in the atlas. `rebakeFootprints` in `server/index.ts` closes that: saving in
+the editor re-bakes onto the live atlas, culls and re-materializes the wild, and
+emits `wild_reset`. Camp iteration is a 30-second loop rather than a restart.
 
 ### 5. Portals out of a footprint — **S. Single-portal case is free.**
 
@@ -426,8 +450,10 @@ Each step is independently useful; nothing later is blocked on a big-bang.
    tool works on them, and a Field panel bakes the open footprint over the real
    wilderness at the epoch you scrub to, with a 24-epoch sweep for placement and
    region existence. `world/dungeons/raider_camp.json` is the seed POI.
-3. **(4) authored wild entities.** The camp becomes populated. Biggest item; do
-   it once the placement half is proven.
+3. ~~**(4) authored wild entities.**~~ **Done.** `server/game/siteSpawns.ts`
+   resolves a footprint's `spawns` against its baked layout; `Wilderness` owns
+   materialize/despawn/respawn; the procedural roll steps around a footprint
+   entirely. Hot-reload of a baked exterior came with it.
 4. **(5) + (7) + (7b) portals, multi-zone sites, and the reserved boss chamber.**
    The interior opens up. (7b) is small and should land with the first re-rolled
    interior, not after it.
@@ -448,11 +474,12 @@ seed-driven relocation, and pays for it in three places:
 
 - **the atlas grows a data-carrying stamp kind** (small, bounded, fine);
 - **authored spawns in the wild are genuinely new** (gap 4, the real cost);
-- **hot-reload is lost for the exterior.** Editing a zone file rebuilds it in
-  place (`server/world/watcher.ts`); a baked footprint lives in the atlas, so
-  changing it means a re-bake and an atlas rebuild. Worth wiring the watcher to
-  re-bake and re-emit `wild_reset` on a site-file change, or camp iteration
-  becomes restart-driven.
+- ~~**hot-reload is lost for the exterior.**~~ **Fixed** (gap 4). Editing a zone
+  file rebuilds it in place (`server/world/watcher.ts`); a baked footprint lives
+  in the atlas, so `rebakeFootprints` re-bakes onto the live atlas, culls and
+  re-materializes the wild, and emits `wild_reset`. Position does not move —
+  placement is a function of seed, epoch and footprint size, and only the last is
+  being edited.
 
 ## Consolidating the tools
 
@@ -492,11 +519,10 @@ that answers "is this site shippable?" — mapgen warnings, unknown spawn entiti
 regions missing in any sampled epoch, quest giver not placed, ability lint. This
 is where the cross-epoch bake test (gap 9) surfaces interactively.
 
-**A dev channel to the running game.** Editing a zone file hot-reloads it
-(`server/world/watcher.ts`); a baked footprint lives in the atlas and does not.
-Give the tool a dev-only channel to trigger re-bake + `wild_reset`, plus a
-"teleport me there" that reuses `/tp`. This is the difference between a
-30-second and a 3-minute iteration loop, and camp authoring is an iteration loop.
+**A dev channel to the running game.** Half done: the file watcher now re-bakes
+and emits `wild_reset` (gap 4), so saving in the editor moves the tents under
+your feet. Still missing is the other half — a "teleport me there" that reuses
+`/tp`, so you do not have to walk to your own camp to look at it.
 
 **Settle the vocabulary before writing code.** `DungeonDef` → `SiteDef`,
 `DungeonSite` → placed site, "dungeon" → "site" across atlas, loader, rotation,

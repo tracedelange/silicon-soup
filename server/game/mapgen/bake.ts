@@ -26,6 +26,10 @@ const FALL_THROUGH = new Set([TRANSPARENT, 'void']);
 
 export interface BakedFootprint {
   stamp: GridStamp;
+  /** The generated grid, footprint-local. Kept server-side only (it never rides
+   *  on the atlas) so spawn placement can test walkability against what the
+   *  camp actually painted. */
+  grid: string[][];
   /** Tile ids present in the stamp that block movement, per the world's
    *  tileset. shared/ cannot read a tileset, so this rides on the atlas
    *  (RegionAtlas.stampBlocking) for the client to consult. */
@@ -68,6 +72,7 @@ export function bakeSiteFootprint(
   }
 
   return {
+    grid,
     stamp: {
       kind: 'grid',
       ox: cx - (width >> 1),

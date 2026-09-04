@@ -13,6 +13,7 @@ import { Wilderness } from './game/wilderness.ts';
 import { planRotation } from './game/rotation.ts';
 import { ATLAS_REV, buildAtlas, type RegionAtlas } from '../shared/worldgen/atlas.ts';
 import { bakeAtlasFootprints } from './game/mapgen/bake.ts';
+import { resolveSiteSpawns } from './game/siteSpawns.ts';
 import { deriveSeeds } from '../shared/worldgen/field.ts';
 import { epochEndsAt, epochOf, epochSeed, WILD_EPOCH_MS } from '../shared/worldgen/epoch.ts';
 import { WILD, DEFAULT_WORLD_SEED } from '../shared/worldgen/config.ts';
@@ -157,6 +158,10 @@ world.setDefinitions(worldDefs);
 
 const loop = new GameLoop(world);
 const wilderness = new Wilderness(world, atlas, io);
+// Authored camp populations, resolved against this epoch's baked layout. Kept
+// off the atlas deliberately: it is server-only knowledge, and the client is
+// told about these mobs the same way it is told about every other one.
+wilderness.setSiteSpawns(resolveSiteSpawns(atlas, Object.values(worldDefs.dungeons), worldDefs.blockingTiles, worldDefs.prefabs));
 
 // Every discontinuous relocation — /tp, a portal, a blink, a wilds rotation —
 // funnels through World.teleportFx and lands here. Broadcast per-end to the
@@ -210,6 +215,49 @@ function loadOrBuildAtlas(seed: string, dungeons: DungeonDef[], epoch: number, d
   return built;
 }
 
+/**
+ * Re-bake authored exteriors onto the LIVE atlas after a world reload.
+ *
+ * Editing a zone file rebuilds that zone in place (server/world/watcher.ts), but
+ * a footprint does not live in `zones` — it lives in the atlas, which boot builds
+ * once. Without this, camp iteration is restart-driven; with it, saving in the
+ * editor moves the tents under your feet.
+ *
+ * Position does not change: placement is a function of (seed, epoch, footprint
+ * size), and only the last of those is being edited. Clients are told to drop
+ * everything derived from the atlas, exactly as a rotation does, because the
+ * terrain they compute locally has changed under them.
+ */
+function rebakeFootprints(defs: WorldDefs): void {
+  const roster = Object.values(defs.dungeons);
+  if (!roster.some(d => d.footprint)) return;
+  const atlas = world.atlas;
+  if (!atlas) return;
+  // Drop the previous bake before appending, or every reload stacks another
+  // layer of stamps and the atlas grows without bound.
+  atlas.stamps = atlas.stamps.filter(st => st.kind !== 'grid');
+  atlas.stampBlocking = [];
+  bakeAtlasFootprints(atlas, roster, defs.blockingTiles, defs.prefabs);
+
+  // Everything alive out there was placed against the previous bake. Cull and
+  // re-materialize rather than reconcile — this is the same wholesale swap a
+  // rotation does, minus the seed change, and the wild has no partial update.
+  for (const e of [...world.entities.values()]) {
+    if (e.position.zone === WILD && e.type !== 'player') world.removeEntity(e.id);
+  }
+  wilderness.rotate(atlas);
+  wilderness.setSiteSpawns(resolveSiteSpawns(atlas, roster, defs.blockingTiles, defs.prefabs));
+  io.emit('wild_reset', { epoch: wildEpoch, endsAt: epochEndsAt(wildEpoch, EPOCH_INTERVAL_MS) });
+  for (const e of world.entities.values()) {
+    if (e.type !== 'player' || e.position.zone !== WILD) continue;
+    // A tent wall may have landed on top of them. teleportPlayer into WILD
+    // spirals to free ground, and is a no-op when the tile is still walkable.
+    world.teleportPlayer(e, WILD, e.position.x, e.position.y);
+    wilderness.syncPlayer(e, socketsByEntity.get(e.id) ?? []);
+  }
+  console.log(`[world] re-baked ${roster.filter(d => d.footprint).length} site exterior(s)`);
+}
+
 /** Rotation mints a new atlas file per epoch; without this they accumulate
  *  forever. Keeps the current one plus the immediately previous epoch. */
 function pruneAtlasCaches(currentSeed: string, epoch: number): void {
@@ -222,6 +270,7 @@ function pruneAtlasCaches(currentSeed: string, epoch: number): void {
     }
   } catch (err) { console.warn('[atlas] cache prune failed:', (err as Error).message); }
 }
+loop.onWildRespawn = (tick) => wilderness.tickSiteSpawns(tick);
 loop.onTick = (dirtyZones) => {
   for (const zoneId of dirtyZones) {
     if (zoneId === WILD) { wilderness.broadcast(); continue; }
@@ -485,11 +534,13 @@ function sendRespawnEvent(player: PlayerEntity): void {
 watchWorld(WORLD_DIR, ({ event, path }) => {
   console.log(`[world] ${event}: ${path} — reloading`);
   try {
-    world.setDefinitions(loadWorld(WORLD_DIR, wildEpoch));
+    const reloaded = loadWorld(WORLD_DIR, wildEpoch);
+    world.setDefinitions(reloaded);
     giverIndexCache = null;
     // The wilderness caches its spawnable roster, so a reloaded mob never
     // reaches the open world without this.
     wilderness.refreshTemplates();
+    rebakeFootprints(reloaded);
     for (const e of world.entities.values()) {
       if (e.type !== 'player') continue;
       if (!world.zones[e.position.zone]) {
@@ -596,6 +647,7 @@ function rotateWilds(epoch: number): boolean {
   world.atlas = nextAtlas;
   world.wildSeeds = deriveSeeds(nextAtlas.numericSeed);
   wilderness.rotate(nextAtlas);
+  wilderness.setSiteSpawns(resolveSiteSpawns(nextAtlas, Object.values(nextDefs.dungeons), nextDefs.blockingTiles, nextDefs.prefabs));
   world.setDefinitions(nextDefs);
   giverIndexCache = null;
   warnedFor.clear();
