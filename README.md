@@ -276,6 +276,8 @@ npm run biome-workbench    # :3002  N variants of a biome across seeds, tag good
 npm run loot-lab           # :3003  roll the loot/affix pipeline
 npm run world-map          # :3003  world graph overview
 npm run world-gen          # :3004  world/atlas generation preview
+npm run sprite-lab         # :3005  draw gear overlays against the player paper-doll
+npm run sprite-coverage    # which equippable items have gear art, and which can't
 npm run forge              # :3006  live cascade tree UI
 npm run render-zone        # ASCII/PNG render of a zone for inspection
 npm run test:gen           # generator fixtures

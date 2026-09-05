@@ -203,6 +203,25 @@
       background: #2a2418; box-shadow: 0 0 0 1px #ffd84a inset;
     }
 
+    /* Item / gear icons. Pixel art, so never smoothed, and centred in whatever
+       slot holds them. */
+    canvas.item-icon { image-rendering: pixelated; display: block; margin: 0 auto; }
+    .idd-icon {
+      display: flex; align-items: center; justify-content: center;
+      height: 116px; margin-bottom: 8px;
+    }
+    .loot-row canvas.item-icon, .trade-row canvas.item-icon {
+      margin: 0 6px 0 0; flex: none; align-self: center;
+    }
+
+    /* Character sheet portrait: the live paper-doll, gear and all. */
+    #cs-portrait {
+      display: flex; align-items: center; justify-content: center;
+      height: 144px; margin-bottom: 10px;
+      background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 4px;
+    }
+    #cs-portrait canvas { image-rendering: pixelated; }
+
     /* Item detail panel */
     #inv-detail {
       flex: 1; min-width: 170px; background: #111; border: 1px solid #2a2a2a;
@@ -695,6 +714,7 @@
   <div id="charsheet-backdrop" class="modal-backdrop">
     <div class="modal" id="charsheet">
       <h2>Character Sheet</h2>
+      <div id="cs-portrait"></div>
       <div class="row"><span class="label">Name</span><span class="value" id="cs-name">—</span></div>
       <div class="row"><span class="label">Class</span><span class="value" id="cs-class">—</span></div>
       <div class="row"><span class="label">Level</span><span class="value" id="cs-level">—</span></div>

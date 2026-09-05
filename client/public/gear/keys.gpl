@@ -1,0 +1,10 @@
+GIMP Palette
+Name: Gear Overlay Keys
+Columns: 5
+# The five key grays overlay art is painted in. Each maps to the equipped
+# material's ramp stop at the same index. See README.md in this folder.
+  0   0   0	step 0 - outline
+ 64  64  64	step 1 - deep shadow
+128 128 128	step 2 - midtone
+191 191 191	step 3 - light
+255 255 255	step 4 - specular

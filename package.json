@@ -21,6 +21,8 @@
     "zone-editor": "tsx tools/zone-editor/server.ts",
     "ability-editor": "tsx tools/ability-editor/server.ts",
     "loot-lab": "tsx tools/loot-lab/server.ts",
+    "sprite-lab": "tsx tools/sprite-lab/server.ts",
+    "sprite-coverage": "tsx tools/sprite-coverage.ts",
     "biome-workbench": "tsx tools/biome-workbench/server.ts",
     "world-map": "tsx tools/world-map/server.ts",
     "world-gen": "tsx tools/world-gen/server.ts",

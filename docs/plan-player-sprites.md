@@ -58,6 +58,17 @@ pixel-art characters, not squares.
 
 ## Phase 2 — Equipment layers (~1-2 sessions)
 
+**Status (Sept 2026): the machinery is built and one weapon overlay ships.**
+The compositor moved out of the client into `shared/playerComposite.ts` (pure,
+runs in the browser and in Node), gear resolution into `shared/itemVisuals.ts`,
+and the whole chain is previewable *and editable* via `npm run sprite-lab`
+(:3005) — it carries a pixel editor that composites each stroke onto the
+character live, so overlays can be drawn without leaving the tool. What
+remains is *art* — 6 more weapon overlays, 2 chests, 2 helms — not code. Each is
+a 64×64 grayscale PNG dropped into `client/public/gear/`; the filename is the
+registration, and a missing file simply doesn't draw. See that folder's
+README.md for the authoring contract.
+
 - **Weapons:** one grayscale overlay per archetype (`dagger`, `sword`,
   `greatsword`, `staff`, … from `world/entities/items/archetypes.yaml`),
   positioned at the canonical hand anchor. Tint by a material→color-ramp table
@@ -75,7 +86,27 @@ pixel-art characters, not squares.
 
 **Done when:** equipping a runed greatsword visibly changes the character;
 swapping to a legendary fire-branded dagger shows a different silhouette,
-glow, and tint.
+glow, and tint. (True today for `sword` — the one archetype with art.)
+
+**Decisions made while building it, worth not re-litigating:**
+
+- **Overlays are 64×64, not 32×32 like the bodies.** The bodies are a 32-grid
+  at 2px cells; overlays are authored at the full output resolution, so gear can
+  carry finer detail than the body it hangs off — and it matches the density of
+  the baked 64×64 mob sprites. When the bodies are eventually redrawn at 64,
+  the layer contract doesn't change.
+- **Overlays are full-width.** The bodies are stored as a left half and
+  mirrored; anything held in one hand is asymmetric and can't use that trick.
+- **Five key grays, not an arbitrary palette.** Matching is nearest-stop by
+  luminance rather than exact equality — the plan's worry about palette-swap
+  fidelity surviving quantization is handled by tolerance, not by discipline.
+- **A brand tints only the highlight stops.** A fire sword should read as steel
+  catching fire, not as a red sword, so the shadow stops keep the material's
+  own color.
+- **`MATERIAL_VISUALS` restates the material registry**, so the registry grades
+  it: `shared/itemVisuals.test.ts` fails when a material in `materials.yaml`
+  has no ramp, when a ramp names a material that no longer exists, or when a
+  ramp's weight disagrees with the YAML's `armor_tag`.
 
 ## Phase 3 — Status effect FX (~1 session)
 
@@ -96,7 +127,9 @@ without reading the text badges.
 - **Walk cycles / directional frames** — single-frame + horizontal flip first.
   Multi-frame is a natural Phase 4 once the layer contract exists (each layer
   becomes an N-frame strip).
-- **Server-side appearance field** — not needed now. Note: snapshots currently
+- **Server-side appearance field** — not needed now. Confirmed: snapshots ship
+  the player's whole `components` object (`world.ts` `entityToSnapshot`), so
+  `drawPlayerSprite` reads equipment with no new wire field. Note: snapshots currently
   broadcast every player's full inventory/equipment to everyone in the zone.
   When that gets trimmed (bandwidth/privacy), replace with a compact derived
   `appearance` struct; the client compositor should read equipment through one
