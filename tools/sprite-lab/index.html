@@ -140,7 +140,7 @@
     <fieldset>
       <legend>Keys</legend>
       <div class="note keyhelp">
-        <kbd>1</kbd>–<kbd>5</kbd><span>pick a shade</span>
+        <kbd>1</kbd>–<kbd>9</kbd><span>pick a shade (roles past 9 are click-only)</span>
         <kbd>0</kbd><span>erase</span>
         <kbd>B</kbd><span>pencil</span>
         <kbd>E</kbd><span>eraser</span>
@@ -238,7 +238,8 @@ let nonce = Date.now();
 // index-per-cell grid; only the palette behind the indices differs, so every
 // tool — pencil, fill, rotate, the clipboard — works on either without knowing.
 let mode = 'gear';
-let palette = KEY_GRAYS.map((v) => `rgb(${v},${v},${v})`);
+const grayHex = (v) => `#${v.toString(16).padStart(2, '0').repeat(3)}`;
+let palette = KEY_GRAYS.map(grayHex);
 let steps = new Int8Array(SIZE * SIZE).fill(CLEAR);  // the art being edited
 let saved = null;                                    // last-known-on-disk copy
 let shade = 4;
@@ -659,7 +660,12 @@ function buildPalette() {
     const el = document.createElement('div');
     el.className = 'sw' + (roles ? ' role' : '');
     el.style.background = css;
-    el.style.color = i > 2 ? '#555' : '#aaa';
+    // The old rule assumed the gray ramp, where a higher index is lighter.
+    // Roles are in no such order — hair is dark and sits late — so the label
+    // colour comes from the swatch's own luminance.
+    const n = parseInt(css.slice(1), 16);
+    const lum = 0.299 * ((n >> 16) & 0xff) + 0.587 * ((n >> 8) & 0xff) + 0.114 * (n & 0xff);
+    el.style.color = lum > 140 ? '#333' : '#ccc';
     el.textContent = roles ? roles[i].ch : i;
     el.title = roles ? `${roles[i].label} (${roles[i].ch})` : `step ${i} — gray ${KEY_GRAYS[i]} (${i + 1})`;
     el.dataset.step = i;
@@ -831,9 +837,7 @@ async function loadLayer(name) {
   $('angle').value = 0; $('anglev').textContent = '0°'; setRotUI(); setClipUI();
   undos.length = 0;
   mode = isBody(name) ? 'body' : 'gear';
-  palette = mode === 'body'
-    ? meta.bodyRoles.map((r) => r.hex)
-    : KEY_GRAYS.map((v) => `rgb(${v},${v},${v})`);
+  palette = mode === 'body' ? meta.bodyRoles.map((r) => r.hex) : KEY_GRAYS.map(grayHex);
   buildPalette();
   $('mirrorWrap').style.display = mode === 'body' ? '' : 'none';
   if (mode !== 'body') $('mirror').checked = false;
