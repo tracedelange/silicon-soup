@@ -236,6 +236,9 @@ function invOpen(): boolean { return invBackdrop.classList.contains('open'); }
 whenLayerLoads(() => {
   if (invOpen()) renderInventory(true);
   if (sheetBackdrop.classList.contains('open')) renderCharSheet();
+  // Force the attack slot to rebuild: its key hasn't changed, but the art it
+  // would have drawn now exists.
+  attackSlotKey = '';
 });
 
 // Which item the inventory panel is showing. Left-clicking a cell only ever
@@ -413,7 +416,7 @@ function renderItemDetail(stack: InventoryStack | null): void {
 
   invDetail.innerHTML = html;
   const iconBox = invDetail.querySelector('.idd-icon');
-  if (iconBox) iconBox.appendChild(itemIconEl(stack, 56)!);
+  if (iconBox) iconBox.appendChild(itemIconEl(stack, 112)!);
   appendItemActions(stack);
 }
 
@@ -2706,12 +2709,22 @@ function updateAttackSlot(): void {
   const def = selfAttackAbility();
   const reach = selfAttackRange();
   const rarity = mainhand?.item?.components?.equipment?.rarity as string | undefined;
-  const key = `${def?.id ?? ''}|${mainhand?.name ?? ''}|${reach}|${rarity ?? ''}`;
+  const brand = mainhand?.item?.components?.equipment?.rolled?.weapon_brand as string | undefined;
+  // Base and brand, not just the display name: they're what change the icon,
+  // and two weapons can share a name while differing in both.
+  const key = `${def?.id ?? ''}|${mainhand?.base ?? ''}|${mainhand?.name ?? ''}|${reach}|${rarity ?? ''}|${brand ?? ''}`;
   if (key === attackSlotKey) return;
   attackSlotKey = key;
 
   hbAttackIcon.replaceChildren();
-  if (def) {
+  // Slot 0 is whatever you're holding, so show the weapon itself when it has
+  // art — the same icon the bag and the character's hand show. The proc-gen
+  // ability glyph stays the fallback: unarmed has no weapon to draw, and
+  // neither does an archetype nobody has drawn yet.
+  const weaponIcon = mainhand ? itemIconEl(mainhand, 34) : null;
+  if (weaponIcon) {
+    hbAttackIcon.appendChild(weaponIcon);
+  } else if (def) {
     const c = document.createElement('canvas');
     c.className = 'hb-icon-canvas';
     c.width = 32;
