@@ -10,6 +10,8 @@ npm run sprite-lab   # http://localhost:3005
 The workbench both previews and **edits** these files: pick an overlay under
 *Editing*, draw with the five-gray palette, and every stroke re-composites onto
 the character live before anything touches disk. Save writes the PNG back here.
+Rotate pivots on the hand rather than the image centre, so an angled blade stays
+in the grip; off a quarter turn it's lossy, so it previews until you Apply.
 Aseprite still works fine — the format below is the whole contract, and the
 workbench picks up an externally-saved file on *Reload from disk*.
 

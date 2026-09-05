@@ -21,6 +21,7 @@ import {
   GEAR_DIR, LayerSizeError, TRANSPARENT, loadGearLayer, pixelsToSteps,
   playerSpritePng, rgbaToPng, saveGearLayer, stepsToPixels,
 } from '../lib/playerSpritePng.ts';
+import { CENTRE_PIVOT, handPivot, rotateSteps } from '../lib/spriteTransform.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -141,6 +142,24 @@ app.get('/api/layer/:name', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
+});
+
+/**
+ * Preview a rotation. Deliberately not applied to disk or to the editor's
+ * committed art — the tool holds the result as a draft until Apply, because at
+ * anything off a quarter turn a rotation is a lossy operation you want to see
+ * before you accept.
+ */
+app.post('/api/rotate', (req, res) => {
+  const { steps, angle, pivot = 'hand', klass = 'fighter' } = req.body as {
+    steps?: number[]; angle?: number; pivot?: 'hand' | 'centre'; klass?: ClassId;
+  };
+  if (!Array.isArray(steps) || steps.length !== SPRITE_SIZE * SPRITE_SIZE) {
+    return res.status(400).json({ error: `steps must be ${SPRITE_SIZE * SPRITE_SIZE} entries` });
+  }
+  if (!Number.isFinite(angle)) return res.status(400).json({ error: 'angle must be a number' });
+  const at = pivot === 'centre' ? CENTRE_PIVOT : handPivot(klass);
+  res.json({ steps: [...rotateSteps(steps, angle as number, at)], pivot: at });
 });
 
 app.put('/api/layer/:name', (req, res) => {

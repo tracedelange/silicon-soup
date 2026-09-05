@@ -45,6 +45,11 @@
   .sw.on { border-color: var(--accent); }
   .sw.clear { background: repeating-conic-gradient(#3a3f4a 0 25%, #262a32 0 50%) 0 0 / 10px 10px; }
   .tools { display: flex; gap: 4px; }
+  .xform { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+  .xform.live { border-color: var(--accent); }
+  .xform input[type=range] { width: 150px; }
+  .xform .deg { width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
   .sheet { display: flex; flex-wrap: wrap; gap: 10px; }
   .cell { text-align: center; }
   .cell .cap { color: var(--dim); font-size: 11px; margin-top: 3px; }
@@ -123,6 +128,7 @@
         <kbd>⌘Z</kbd><span>undo</span>
         <kbd>⌘S</kbd><span>save</span>
         <span>right-drag</span><span>erase</span>
+        <kbd>[</kbd> <kbd>]</kbd><span>rotate a quarter turn</span>
       </div>
     </fieldset>
   </div>
@@ -142,6 +148,19 @@
             <button id="revert">Revert</button>
             <button class="primary" id="save" disabled>Save</button>
           </div>
+        </div>
+        <div class="xform" id="xform">
+          <label>Rotate</label>
+          <input type="range" id="angle" min="-180" max="180" step="1" value="0" />
+          <span class="deg" id="anglev">0°</span>
+          <button id="rotL" title="quarter turn anticlockwise">−90</button>
+          <button id="rotR" title="quarter turn clockwise">+90</button>
+          <label>around <select id="pivot">
+            <option value="hand">hand</option>
+            <option value="centre">centre</option>
+          </select></label>
+          <button class="primary" id="applyRot" disabled>Apply</button>
+          <button id="cancelRot" disabled>Cancel</button>
         </div>
         <div id="saveMsg" class="note" style="margin-top:6px">&nbsp;</div>
       </div>
@@ -182,9 +201,13 @@ let painting = null;   // the step being painted this drag, or null
 let last = null;       // previous cell, for line interpolation
 let guideImg = new Image();
 let guideReady = false;
+// A rotation in progress. Held as a separate buffer so the slider can be
+// dragged back to 0 and leave the art untouched — only Apply commits it.
+let preview = null;
 
 const opt = (v, label) => { const o = document.createElement('option'); o.value = v; o.textContent = label; return o; };
 const dirty = () => saved && steps.some((v, i) => v !== saved[i]);
+const rotating = () => preview !== null;
 
 function materialsFor(archId) {
   const arch = meta.archetypes.find((a) => a.id === archId);
@@ -217,8 +240,9 @@ function repaint() {
 
   if ($('anchors').checked) drawAnchorBands(c, z);
 
-  for (let p = 0; p < steps.length; p++) {
-    const s = steps[p];
+  const shown = preview ?? steps;
+  for (let p = 0; p < shown.length; p++) {
+    const s = shown[p];
     if (s < 0) continue;
     const v = KEY_GRAYS[s];
     c.fillStyle = `rgb(${v},${v},${v})`;
@@ -226,6 +250,7 @@ function repaint() {
   }
 
   if ($('anchors').checked) drawAnchorLines(c, z);
+  if (preview) drawPivot(c, z);
 
   if ($('grid').checked && z >= 5) {
     c.strokeStyle = 'rgba(255,255,255,.07)';
@@ -357,6 +382,7 @@ function pushUndo() {
 }
 
 $('edit').addEventListener('pointerdown', (ev) => {
+  if (rotating()) { $('saveMsg').innerHTML = '<span class="warn">Apply or cancel the rotation before drawing.</span>'; return; }
   const at = cellAt(ev);
   if (!at) return;
   ev.preventDefault();
@@ -450,11 +476,83 @@ window.addEventListener('keydown', (ev) => {
   if (cmd) return;
   if (ev.key === '0') { selectTool('eraser'); return; }
   if ('12345'.includes(ev.key)) { selectTool('pencil'); selectShade(Number(ev.key) - 1); return; }
+  if (ev.key === '[') { $('rotL').click(); return; }
+  if (ev.key === ']') { $('rotR').click(); return; }
   const byKey = { b: 'pencil', e: 'eraser', g: 'fill', i: 'picker' };
   if (byKey[ev.key.toLowerCase()]) selectTool(byKey[ev.key.toLowerCase()]);
 });
 
+/** Mark what the art is turning around — a rotation whose pivot you can't see
+ *  is guesswork about where the grip will end up. */
+function drawPivot(c, z) {
+  if (!pivotAt) return;
+  const x = pivotAt.x * z, y = pivotAt.y * z;
+  c.strokeStyle = 'rgba(217,138,31,.95)';
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(x - 10, y + .5); c.lineTo(x + 10, y + .5);
+  c.moveTo(x + .5, y - 10); c.lineTo(x + .5, y + 10);
+  c.stroke();
+  c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.stroke();
+}
+
+let pivotAt = null;
+let rotSeq = 0;
+
+async function showRotation(deg) {
+  $('anglev').textContent = `${deg}°`;
+  if (deg === 0) { preview = null; pivotAt = null; setRotUI(); repaint(); refreshComposite(); return; }
+  // Every drag tick renders server-side through the tested transform rather
+  // than a second copy of the math here; stale replies are dropped by sequence.
+  const seq = ++rotSeq;
+  const res = await fetch('/api/rotate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ steps: [...steps], angle: deg, pivot: $('pivot').value, klass: $('klass').value }),
+  });
+  if (!res.ok) { $('saveMsg').innerHTML = `<span class="warn">${(await res.json()).error}</span>`; return; }
+  if (seq !== rotSeq) return;
+  const body = await res.json();
+  preview = Int8Array.from(body.steps);
+  pivotAt = body.pivot;
+  setRotUI();
+  repaint();
+  refreshComposite();
+}
+
+function setRotUI() {
+  const live = rotating();
+  $('xform').classList.toggle('live', live);
+  $('applyRot').disabled = !live;
+  $('cancelRot').disabled = !live;
+}
+
+function endRotation(commit) {
+  if (commit && preview) { pushUndo(); steps = preview; }
+  preview = null;
+  pivotAt = null;
+  $('angle').value = 0;
+  $('anglev').textContent = '0°';
+  setRotUI();
+  repaint();
+  refreshComposite();
+}
+
+$('angle').addEventListener('input', () => showRotation(Number($('angle').value)));
+$('pivot').addEventListener('change', () => showRotation(Number($('angle').value)));
+for (const [id, by] of [['rotL', -90], ['rotR', 90]]) {
+  $(id).addEventListener('click', () => {
+    // Quarter turns are lossless, so they commit straight away rather than
+    // making you confirm something that can't go wrong.
+    $('angle').value = by;
+    showRotation(by).then(() => endRotation(true));
+  });
+}
+$('applyRot').addEventListener('click', () => endRotation(true));
+$('cancelRot').addEventListener('click', () => endRotation(false));
+
 function undo() {
+  if (rotating()) { endRotation(false); return; }
   const prev = undos.pop();
   if (!prev) return;
   steps = prev;
@@ -464,6 +562,7 @@ function undo() {
 
 // ── load / save ─────────────────────────────────────────────────────────────
 async function loadLayer(name) {
+  preview = null; pivotAt = null; $('angle').value = 0; $('anglev').textContent = '0°'; setRotUI();
   const data = await (await fetch(`/api/layer/${name}?t=${Date.now()}`)).json();
   steps = Int8Array.from(data.steps);
   saved = Int8Array.from(data.steps);
@@ -520,7 +619,7 @@ async function refreshComposite() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       params: Object.fromEntries(params()),
-      draft: { layer: $('layer').value, steps: [...steps] },
+      draft: { layer: $('layer').value, steps: [...(preview ?? steps)] },
     }),
   });
   if (!res.ok) { $('status').innerHTML = `<span class="warn">${(await res.json()).error}</span>`; return; }
