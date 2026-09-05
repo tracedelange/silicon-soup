@@ -194,15 +194,18 @@ export function handColumns(
   let runs = 0;
   let prevOutline = false;
   for (let x = from; x < row.length; x++) {
-    if (row[x] === '.') return null;
-    const outline = row[x] === 'o';
-    if (outline && !prevOutline) runs++;
-    // The arm ends where its inner outline run does.
+    const ch = row[x]!;
+    const outline = ch === 'o';
+    // The arm ends where its inner outline run does — whether the next cell is
+    // more body (arms joined to the torso, as the built-in templates draw them)
+    // or empty canvas (arms held clear of it, as a slimmer figure does).
     if (!outline && prevOutline && runs === 2) {
       const to = x - 1;
       const w = row.length;
       return { left: [from, to], right: [w - 1 - to, w - 1 - from] };
     }
+    if (ch === '.') return null;   // ran out of body before a second outline
+    if (outline && !prevOutline) runs++;
     prevOutline = outline;
   }
   return null;

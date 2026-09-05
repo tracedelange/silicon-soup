@@ -65,8 +65,12 @@ describe('rotateSteps', () => {
   // themselves rather than one cell staying put. What matters for authoring is
   // that art AT the pivot doesn't drift away from it — that's what keeps a
   // rotated grip in the hand.
+  //
+  // Pivots here are explicit rather than handPivot's: that one reads whatever
+  // body is checked in, and a test of rotation shouldn't change meaning when
+  // someone redraws the character.
   it('keeps art at the pivot within the pivot block, at any angle', () => {
-    const p = handPivot('fighter');
+    const p = { x: 40, y: 40 };
     const s = blank();
     s[p.y * SPRITE_SIZE + p.x] = 3;
     for (const angle of [15, 45, 90, 137, 180, -60]) {
@@ -95,6 +99,15 @@ describe('handPivot', () => {
     // Rotating about the hand rather than the centre is the whole point; if the
     // two coincided, a rotated blade would leave the grip.
     expect(handPivot('fighter').x).toBeGreaterThan(CENTRE_PIVOT.x);
+  });
+
+  // An arm an odd number of pixels wide centres on a half pixel. Rotation works
+  // in floats, so that's fine — but only if nothing downstream assumes an index.
+  it('may land between pixels without breaking a rotation', () => {
+    const p = handPivot('fighter');
+    const s = blank();
+    s[Math.floor(p.y) * SPRITE_SIZE + Math.floor(p.x)] = 2;
+    expect([...rotateSteps(s, 90, p)].filter((v) => v === 2)).toHaveLength(1);
   });
 
   it('falls back to the centre for a body it cannot read', () => {

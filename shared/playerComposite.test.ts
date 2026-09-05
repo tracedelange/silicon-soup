@@ -5,6 +5,7 @@ import {
   GRID, POSE_ANCHORS, RAMP_STOPS, SPRITE_SIZE, TEMPLATES,
   buildPalette, expandRow, handColumns, opaqueBounds, renderComposite, renderOverlay, templateBody,
 } from './playerComposite.ts';
+import type { BodyArt } from './playerComposite.ts';
 import type { ClassId } from './types.ts';
 
 const CLASSES = Object.keys(TEMPLATES) as ClassId[];
@@ -278,5 +279,34 @@ describe('opaqueBounds', () => {
     const put = (x: number, y: number) => { px[(y * SPRITE_SIZE + x) * 4 + 3] = 255; };
     put(5, 8); put(9, 20);
     expect(opaqueBounds(px)).toEqual({ x: 5, y: 8, w: 5, h: 13 });
+  });
+});
+
+describe('handColumns on a detached arm', () => {
+  // A slimmer figure holds its arms clear of the torso, so the cell after the
+  // arm's inner outline is empty canvas rather than more body.
+  const row = (s: string) => s.padEnd(SPRITE_SIZE, '.');
+  const bodyWith = (hands: string): BodyArt => {
+    const rows = Array(SPRITE_SIZE).fill('.'.repeat(SPRITE_SIZE));
+    const at = POSE_ANCHORS.find((a) => a.label === 'hands')!;
+    for (let y = at.from; y <= at.to; y++) rows[y] = row(hands);
+    return { rows };
+  };
+
+  it('finds an arm that ends in empty canvas', () => {
+    //          arm: outline, skin, outline, then a gap before the torso
+    expect(handColumns(bodyWith('..oossoo....ooggoo'))).toEqual({
+      left: [2, 7], right: [SPRITE_SIZE - 8, SPRITE_SIZE - 3],
+    });
+  });
+
+  it('finds an arm joined to the torso, as the templates draw them', () => {
+    expect(handColumns(bodyWith('..oossooggggg'))).toEqual({
+      left: [2, 7], right: [SPRITE_SIZE - 8, SPRITE_SIZE - 3],
+    });
+  });
+
+  it('gives up on a limb with only one outline run', () => {
+    expect(handColumns(bodyWith('..ooss....'))).toBeNull();
   });
 });

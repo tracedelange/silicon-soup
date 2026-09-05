@@ -1,0 +1,27 @@
+[
+  {
+    "label": "head",
+    "from": 3,
+    "to": 18
+  },
+  {
+    "label": "shoulders",
+    "from": 19,
+    "to": 22
+  },
+  {
+    "label": "hands",
+    "from": 37,
+    "to": 42
+  },
+  {
+    "label": "belt",
+    "from": 41,
+    "to": 44
+  },
+  {
+    "label": "feet",
+    "from": 55,
+    "to": 60
+  }
+]
