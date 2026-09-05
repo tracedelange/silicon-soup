@@ -131,30 +131,40 @@ describe('overlay recoloring', () => {
 });
 
 describe('rarity glow', () => {
-  // The glow rings the item; it must never paint over the character.
+  // Z-order: the aura sits BEHIND the item it rings and IN FRONT of the
+  // character. A sword held across the chest has to halo onto the body rather
+  // than disappearing wherever the two overlap.
   const ramp = rampFor('steel');
-  const band = (visual: GearVisual) => gradientLayer(visual, 10, 12);
+  const edge = (visual: GearVisual) => gradientLayer(visual, 10, 12);   // clear of the body
+  const over = (visual: GearVisual) => gradientLayer(visual, 30, 33);   // cols 30-32, across the torso
 
-  it('lands on transparent pixels beside the silhouette', () => {
-    const glowed = renderComposite({ klass: 'fighter' }, [band({ layer: 'test', ramp, glow: '#ff8c2a' })]);
+  it('lands on empty canvas beside the silhouette', () => {
+    const glowed = renderComposite({ klass: 'fighter' }, [edge({ layer: 'test', ramp, glow: '#ff8c2a' })]);
     expect(px(glowed, 9, 0)[3]).toBeGreaterThan(0);
     expect(px(glowed, 12, 0)[3]).toBeGreaterThan(0);
   });
 
-  it('does not paint over the body it rings', () => {
-    const plain = renderComposite({ klass: 'fighter' }, [band({ layer: 'test', ramp })]);
-    const glowed = renderComposite({ klass: 'fighter' }, [band({ layer: 'test', ramp, glow: '#ff8c2a' })]);
+  it('paints over the body, in front of the character', () => {
+    const plain = renderComposite({ klass: 'fighter' }, [over({ layer: 'test', ramp })]);
+    const glowed = renderComposite({ klass: 'fighter' }, [over({ layer: 'test', ramp, glow: '#ff8c2a' })]);
+    // Pick a row where the torso is solid, so the pixels flanking the band are
+    // body rather than empty canvas.
+    const y = 36;
+    expect(px(plain, 29, y)[3], 'body should be opaque here').toBe(255);
+    expect(px(glowed, 29, y)).not.toEqual(px(plain, 29, y));
+    expect(px(glowed, 33, y)).not.toEqual(px(plain, 33, y));
+  });
+
+  it('never paints over the item it rings', () => {
+    const plain = renderComposite({ klass: 'fighter' }, [over({ layer: 'test', ramp })]);
+    const glowed = renderComposite({ klass: 'fighter' }, [over({ layer: 'test', ramp, glow: '#ff8c2a' })]);
     for (let y = 0; y < SPRITE_SIZE; y++) {
-      for (let x = 0; x < SPRITE_SIZE; x++) {
-        if (px(plain, x, y)[3] === 0) continue;
-        expect(px(glowed, x, y), `${x},${y}`).toEqual(px(plain, x, y));
-      }
+      for (let x = 30; x <= 32; x++) expect(px(glowed, x, y), `${x},${y}`).toEqual(px(plain, x, y));
     }
   });
 
   it('does not glow at all when rarity is common', () => {
-    const plain = renderComposite({ klass: 'fighter' }, [band({ layer: 'test', ramp })]);
-    expect(plain).toEqual(renderComposite({ klass: 'fighter' }, [band({ layer: 'test', ramp })]));
+    const plain = renderComposite({ klass: 'fighter' }, [edge({ layer: 'test', ramp })]);
     expect(px(plain, 9, 0)[3]).toBe(0);
   });
 });

@@ -129,6 +129,10 @@
         <kbd>⌘S</kbd><span>save</span>
         <span>right-drag</span><span>erase</span>
         <kbd>[</kbd> <kbd>]</kbd><span>rotate a quarter turn</span>
+        <kbd>M</kbd><span>marquee select</span>
+        <kbd>⌘C</kbd> <kbd>⌘X</kbd> <kbd>⌘V</kbd><span>copy / cut / paste</span>
+        <kbd>H</kbd> <kbd>V</kbd><span>flip while pasting</span>
+        <kbd>↑↓←→</kbd><span>nudge the pasted piece</span>
       </div>
     </fieldset>
   </div>
@@ -148,6 +152,21 @@
             <button id="revert">Revert</button>
             <button class="primary" id="save" disabled>Save</button>
           </div>
+        </div>
+        <div class="xform" id="clip">
+          <label>Selection</label>
+          <button id="selTool" title="marquee select (M)">Select</button>
+          <button id="copyBtn" disabled>Copy</button>
+          <button id="cutBtn" disabled>Cut</button>
+          <button id="clearBtn" disabled>Clear</button>
+          <button id="pasteBtn" disabled>Paste</button>
+          <span id="clipInfo" class="note"></span>
+          <span id="pasteCtl" hidden>
+            <button id="flipH" title="mirror left/right (H)">Flip ⇄</button>
+            <button id="flipV" title="mirror top/bottom (V)">Flip ⇅</button>
+            <button class="primary" id="applyPaste">Place</button>
+            <button id="cancelPaste">Cancel</button>
+          </span>
         </div>
         <div class="xform" id="xform">
           <label>Rotate</label>
@@ -201,13 +220,23 @@ let painting = null;   // the step being painted this drag, or null
 let last = null;       // previous cell, for line interpolation
 let guideImg = new Image();
 let guideReady = false;
-// A rotation in progress. Held as a separate buffer so the slider can be
-// dragged back to 0 and leave the art untouched — only Apply commits it.
+// A rotation or a paste in progress. Held as a separate buffer so it can be
+// abandoned and leave the art untouched — only Apply commits it.
 let preview = null;
+// Marquee selection in grid cells, and the clipboard cut from one. Flipping is
+// index arithmetic on the region (w-1-x), not resampling, so unlike rotation it
+// can't land a value between two key grays — no reason to route it through the
+// tested transform on the server.
+let sel = null;        // { x, y, w, h } committed selection
+let selDrag = null;    // { ax, ay } anchor while dragging one out
+let clip = null;       // { w, h, steps }
+let paste = null;      // { x, y, flipH, flipV } while a clipboard is floating
 
 const opt = (v, label) => { const o = document.createElement('option'); o.value = v; o.textContent = label; return o; };
 const dirty = () => saved && steps.some((v, i) => v !== saved[i]);
-const rotating = () => preview !== null;
+const rotating = () => preview !== null && paste === null;
+/** An uncommitted transform is on screen; drawing has to wait for Apply. */
+const pending = () => preview !== null;
 
 function materialsFor(archId) {
   const arch = meta.archetypes.find((a) => a.id === archId);
@@ -250,7 +279,8 @@ function repaint() {
   }
 
   if ($('anchors').checked) drawAnchorLines(c, z);
-  if (preview) drawPivot(c, z);
+  if (rotating()) drawPivot(c, z);
+  drawMarquee(c, z);
 
   if ($('grid').checked && z >= 5) {
     c.strokeStyle = 'rgba(255,255,255,.07)';
@@ -337,6 +367,19 @@ function drawAnchorLines(c, z) {
   }
 }
 
+/** The selection, or the floating clipboard's footprint while placing. Dashed
+ *  so it can't be mistaken for a step-0 outline drawn in the art itself. */
+function drawMarquee(c, z) {
+  const box = paste ? { x: paste.x, y: paste.y, w: clip.w, h: clip.h } : sel;
+  if (!box) return;
+  c.save();
+  c.setLineDash([4, 3]);
+  c.lineWidth = 1;
+  c.strokeStyle = paste ? 'rgba(217,138,31,.95)' : 'rgba(255,255,255,.8)';
+  c.strokeRect(box.x * z + .5, box.y * z + .5, box.w * z - 1, box.h * z - 1);
+  c.restore();
+}
+
 function cellAt(ev) {
   const r = $('edit').getBoundingClientRect();
   const z = editZoom();
@@ -381,8 +424,119 @@ function pushUndo() {
   if (undos.length > 60) undos.shift();
 }
 
+// ── selection + clipboard ───────────────────────────────────────────────────
+const rectOf = (a, b) => ({
+  x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
+  w: Math.abs(a.x - b.x) + 1, h: Math.abs(a.y - b.y) + 1,
+});
+
+function copySelection() {
+  if (!sel) return;
+  const out = new Int8Array(sel.w * sel.h);
+  for (let y = 0; y < sel.h; y++) {
+    for (let x = 0; x < sel.w; x++) out[y * sel.w + x] = steps[(sel.y + y) * SIZE + sel.x + x];
+  }
+  clip = { w: sel.w, h: sel.h, steps: out };
+  setClipUI();
+}
+
+function clearSelection() {
+  if (!sel) return;
+  pushUndo();
+  for (let y = 0; y < sel.h; y++) {
+    for (let x = 0; x < sel.w; x++) steps[(sel.y + y) * SIZE + sel.x + x] = CLEAR;
+  }
+  repaint();
+  refreshComposite();
+}
+
+/** The clipboard stamped at its current offset, honouring the flips. Replaces
+ *  the whole destination rectangle rather than only its lit cells: a mirrored
+ *  hilt has to overwrite whatever was on the other side, not blend with it. */
+function pastedSteps() {
+  const out = Int8Array.from(steps);
+  for (let y = 0; y < clip.h; y++) {
+    for (let x = 0; x < clip.w; x++) {
+      const dx = paste.x + x, dy = paste.y + y;
+      if (dx < 0 || dx >= SIZE || dy < 0 || dy >= SIZE) continue;
+      const sx = paste.flipH ? clip.w - 1 - x : x;
+      const sy = paste.flipV ? clip.h - 1 - y : y;
+      out[dy * SIZE + dx] = clip.steps[sy * clip.w + sx];
+    }
+  }
+  return out;
+}
+
+function refreshPaste() {
+  preview = pastedSteps();
+  repaint();
+  refreshComposite();
+}
+
+function beginPaste() {
+  if (!clip) return;
+  // Land it on the selection if there is one, else centred — either way it's
+  // movable before it commits, so the starting spot only has to be sane.
+  paste = sel
+    ? { x: sel.x, y: sel.y, flipH: false, flipV: false }
+    : { x: (SIZE - clip.w) >> 1, y: (SIZE - clip.h) >> 1, flipH: false, flipV: false };
+  setClipUI();
+  refreshPaste();
+}
+
+function endPaste(commit) {
+  if (commit) { pushUndo(); steps = pastedSteps(); }
+  paste = null;
+  preview = null;
+  setClipUI();
+  repaint();
+  refreshComposite();
+}
+
+function setClipUI() {
+  const on = !!sel;
+  for (const id of ['copyBtn', 'cutBtn', 'clearBtn']) $(id).disabled = !on;
+  $('pasteBtn').disabled = !clip;
+  $('pasteCtl').hidden = !paste;
+  $('clip').classList.toggle('live', !!paste);
+  $('selTool').classList.toggle('on', tool === 'select');
+  $('clipInfo').textContent = paste ? `placing ${clip.w}x${clip.h} at ${paste.x},${paste.y}`
+    : sel ? `${sel.w}x${sel.h} selected` : clip ? `${clip.w}x${clip.h} copied` : '';
+}
+
+$('selTool').addEventListener('click', () => selectTool('select'));
+$('copyBtn').addEventListener('click', copySelection);
+$('cutBtn').addEventListener('click', () => { copySelection(); clearSelection(); });
+$('clearBtn').addEventListener('click', clearSelection);
+$('pasteBtn').addEventListener('click', beginPaste);
+$('flipH').addEventListener('click', () => { paste.flipH = !paste.flipH; refreshPaste(); });
+$('flipV').addEventListener('click', () => { paste.flipV = !paste.flipV; refreshPaste(); });
+$('applyPaste').addEventListener('click', () => endPaste(true));
+$('cancelPaste').addEventListener('click', () => endPaste(false));
+
 $('edit').addEventListener('pointerdown', (ev) => {
-  if (rotating()) { $('saveMsg').innerHTML = '<span class="warn">Apply or cancel the rotation before drawing.</span>'; return; }
+  const at0 = cellAt(ev);
+  // Dragging inside a floating paste moves it; that has to win over painting.
+  const onPaste = paste && at0
+    && at0.x >= paste.x && at0.x < paste.x + clip.w
+    && at0.y >= paste.y && at0.y < paste.y + clip.h;
+  if (onPaste) {
+    ev.preventDefault();
+    $('edit').setPointerCapture(ev.pointerId);
+    selDrag = { grab: true, ox: at0.x - paste.x, oy: at0.y - paste.y };
+    return;
+  }
+  if (paste) return;   // clicks off the piece do nothing until it's placed
+  if (tool === 'select' && at0 && !pending()) {
+    ev.preventDefault();
+    $('edit').setPointerCapture(ev.pointerId);
+    selDrag = { ax: at0.x, ay: at0.y };
+    sel = rectOf(at0, at0);
+    setClipUI();
+    repaint();
+    return;
+  }
+  if (pending()) { $('saveMsg').innerHTML = '<span class="warn">Apply or cancel the pending change before drawing.</span>'; return; }
   const at = cellAt(ev);
   if (!at) return;
   ev.preventDefault();
@@ -404,6 +558,24 @@ $('edit').addEventListener('pointerdown', (ev) => {
 });
 
 $('edit').addEventListener('pointermove', (ev) => {
+  if (selDrag?.grab) {
+    const at = cellAt(ev);
+    if (!at) return;
+    paste.x = at.x - selDrag.ox;
+    paste.y = at.y - selDrag.oy;
+    setClipUI();
+    preview = pastedSteps();
+    repaint();
+    return;
+  }
+  if (selDrag) {
+    const at = cellAt(ev);
+    if (!at) return;
+    sel = rectOf({ x: selDrag.ax, y: selDrag.ay }, at);
+    setClipUI();
+    repaint();
+    return;
+  }
   if (painting === null) return;
   const at = cellAt(ev);
   if (!at) return;
@@ -414,6 +586,14 @@ $('edit').addEventListener('pointermove', (ev) => {
 
 for (const evt of ['pointerup', 'pointercancel', 'pointerleave']) {
   $('edit').addEventListener(evt, () => {
+    if (selDrag) {
+      const wasDrag = selDrag.grab;
+      selDrag = null;
+      // Only the composite is deferred to drag-end: repainting the character on
+      // every pointermove would queue a round trip per pixel of travel.
+      if (wasDrag) refreshComposite();
+      return;
+    }
     if (painting === null) return;
     painting = null; last = null;
     refreshComposite();
@@ -434,7 +614,8 @@ function selectTool(t) {
   if (clear) clear.classList.toggle('on', t === 'eraser');
   if (t === 'eraser') for (const el of $('swatches').children) if (el !== clear) el.classList.remove('on');
   else selectShade(shade);
-  $('edit').style.cursor = t === 'picker' ? 'copy' : 'crosshair';
+  $('edit').style.cursor = t === 'picker' ? 'copy' : t === 'select' ? 'cell' : 'crosshair';
+  setClipUI();
 }
 
 function buildPalette() {
@@ -473,12 +654,27 @@ window.addEventListener('keydown', (ev) => {
   const cmd = ev.metaKey || ev.ctrlKey;
   if (cmd && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); return; }
   if (cmd && ev.key.toLowerCase() === 's') { ev.preventDefault(); save(); return; }
+  if (cmd && ev.key.toLowerCase() === 'c') { ev.preventDefault(); copySelection(); return; }
+  if (cmd && ev.key.toLowerCase() === 'x') { ev.preventDefault(); copySelection(); clearSelection(); return; }
+  if (cmd && ev.key.toLowerCase() === 'v') { ev.preventDefault(); beginPaste(); return; }
   if (cmd) return;
+  if (paste) {
+    // While a piece is floating, the keyboard belongs to placing it.
+    const nudge = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[ev.key];
+    if (nudge) { ev.preventDefault(); paste.x += nudge[0]; paste.y += nudge[1]; setClipUI(); refreshPaste(); return; }
+    if (ev.key === 'Enter') { endPaste(true); return; }
+    if (ev.key === 'Escape') { endPaste(false); return; }
+    if (ev.key.toLowerCase() === 'h') { $('flipH').click(); return; }
+    if (ev.key.toLowerCase() === 'v') { $('flipV').click(); return; }
+    return;
+  }
+  if (ev.key === 'Escape' && sel) { sel = null; setClipUI(); repaint(); return; }
+  if ((ev.key === 'Backspace' || ev.key === 'Delete') && sel) { ev.preventDefault(); clearSelection(); return; }
   if (ev.key === '0') { selectTool('eraser'); return; }
   if ('12345'.includes(ev.key)) { selectTool('pencil'); selectShade(Number(ev.key) - 1); return; }
   if (ev.key === '[') { $('rotL').click(); return; }
   if (ev.key === ']') { $('rotR').click(); return; }
-  const byKey = { b: 'pencil', e: 'eraser', g: 'fill', i: 'picker' };
+  const byKey = { b: 'pencil', e: 'eraser', g: 'fill', i: 'picker', m: 'select' };
   if (byKey[ev.key.toLowerCase()]) selectTool(byKey[ev.key.toLowerCase()]);
 });
 
@@ -552,6 +748,7 @@ $('applyRot').addEventListener('click', () => endRotation(true));
 $('cancelRot').addEventListener('click', () => endRotation(false));
 
 function undo() {
+  if (paste) { endPaste(false); return; }
   if (rotating()) { endRotation(false); return; }
   const prev = undos.pop();
   if (!prev) return;
@@ -562,7 +759,8 @@ function undo() {
 
 // ── load / save ─────────────────────────────────────────────────────────────
 async function loadLayer(name) {
-  preview = null; pivotAt = null; $('angle').value = 0; $('anglev').textContent = '0°'; setRotUI();
+  preview = null; pivotAt = null; paste = null; sel = null;
+  $('angle').value = 0; $('anglev').textContent = '0°'; setRotUI(); setClipUI();
   const data = await (await fetch(`/api/layer/${name}?t=${Date.now()}`)).json();
   steps = Int8Array.from(data.steps);
   saved = Int8Array.from(data.steps);

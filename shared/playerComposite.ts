@@ -352,30 +352,37 @@ export function renderComposite(spec: CompositeSpec, layers: readonly CompositeL
     const shades = rampToRGB(layer.visual.ramp);
     const tint = layer.visual.tint ? parseHex(layer.visual.tint) : null;
     const lit = new Uint8Array(SPRITE_SIZE * SPRITE_SIZE);
+    for (let p = 0; p < SPRITE_SIZE * SPRITE_SIZE; p++) {
+      if ((layer.pixels[p * 4 + 3] ?? 0) !== 0) lit[p] = 1;
+    }
+
+    // Glow first, then the item over it. The aura belongs BEHIND the thing it
+    // rings but IN FRONT of the character — a legendary sword held across the
+    // chest should halo onto the body, not vanish wherever the two overlap.
+    // Drawing it before the layer is what puts it in that middle position.
+    if (layer.visual.glow) {
+      const glow = parseHex(layer.visual.glow);
+      for (let y = 0; y < SPRITE_SIZE; y++) {
+        for (let x = 0; x < SPRITE_SIZE; x++) {
+          const p = y * SPRITE_SIZE + x;
+          if (lit[p]) continue;
+          const ringed = (x > 0 && lit[p - 1]) || (x < SPRITE_SIZE - 1 && lit[p + 1])
+            || (y > 0 && lit[p - SPRITE_SIZE]) || (y < SPRITE_SIZE - 1 && lit[p + SPRITE_SIZE]);
+          if (ringed) blend(out, p * 4, glow, 200);
+        }
+      }
+    }
 
     for (let p = 0; p < SPRITE_SIZE * SPRITE_SIZE; p++) {
       const i = p * 4;
       const a = layer.pixels[i + 3] ?? 0;
       if (a === 0) continue;
-      lit[p] = 1;
       const step = rampStep(layer.pixels[i]!, layer.pixels[i + 1]!, layer.pixels[i + 2]!);
       let c = shades[step]!;
       // Highlights carry the brand; shadows stay the material's own color, so
       // the metal still reads as steel/runed underneath the element.
       if (tint) c = mix(c, tint, step >= RAMP_STOPS - 2 ? 0.55 : step === RAMP_STOPS - 3 ? 0.25 : 0);
       blend(out, i, c, a);
-    }
-
-    if (!layer.visual.glow) continue;
-    const glow = parseHex(layer.visual.glow);
-    for (let y = 0; y < SPRITE_SIZE; y++) {
-      for (let x = 0; x < SPRITE_SIZE; x++) {
-        const p = y * SPRITE_SIZE + x;
-        if (lit[p] || out[p * 4 + 3]! > 0) continue;
-        const ringed = (x > 0 && lit[p - 1]) || (x < SPRITE_SIZE - 1 && lit[p + 1])
-          || (y > 0 && lit[p - SPRITE_SIZE]) || (y < SPRITE_SIZE - 1 && lit[p + SPRITE_SIZE]);
-        if (ringed) blend(out, p * 4, glow, 200);
-      }
     }
   }
 
