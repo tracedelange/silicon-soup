@@ -32,7 +32,14 @@ function decode(img: HTMLImageElement): Uint8ClampedArray {
   return ctx.getImageData(0, 0, SPRITE_SIZE, SPRITE_SIZE).data;
 }
 
-function layerPixels(name: string): Uint8ClampedArray | null {
+/** Notified when a lazily-fetched overlay arrives, so anything holding derived
+ *  art (the item-icon cache) can drop it and rebuild. */
+const onLayerLoad: (() => void)[] = [];
+export function whenLayerLoads(fn: () => void): void { onLayerLoad.push(fn); }
+
+/** Shared with itemIcon.ts: one fetch and one decode per overlay, whether it's
+ *  wanted for a body composite or a bag icon. */
+export function gearLayerPixels(name: string): Uint8ClampedArray | null {
   const hit = layers.get(name);
   if (hit) return hit instanceof Uint8ClampedArray ? hit : null;
 
@@ -43,6 +50,7 @@ function layerPixels(name: string): Uint8ClampedArray | null {
     // A newly arrived layer changes every look that wanted it. The cache is a
     // few dozen entries at most, so dropping all of it beats tracking which.
     composites.clear();
+    for (const fn of onLayerLoad) fn();
   };
   img.onerror = () => { layers.set(name, 'missing'); };
   img.src = `/gear/${name}.png`;
@@ -52,7 +60,7 @@ function layerPixels(name: string): Uint8ClampedArray | null {
 function compose(klass: ClassId, color: string, visuals: GearVisual[]): HTMLCanvasElement {
   const ready: CompositeLayer[] = [];
   for (const visual of visuals) {
-    const pixels = layerPixels(visual.layer);
+    const pixels = gearLayerPixels(visual.layer);
     if (pixels) ready.push({ pixels, visual });
   }
   const rgba = renderComposite({ klass, color }, ready);

@@ -3,7 +3,7 @@ import { rampFor } from './itemVisuals.ts';
 import type { GearVisual } from './itemVisuals.ts';
 import {
   GRID, POSE_ANCHORS, RAMP_STOPS, SPRITE_SIZE, TEMPLATES,
-  buildPalette, expandRow, handColumns, renderComposite,
+  buildPalette, expandRow, handColumns, opaqueBounds, renderComposite, renderOverlay,
 } from './playerComposite.ts';
 import type { ClassId } from './types.ts';
 
@@ -186,5 +186,54 @@ describe('handColumns', () => {
       const row = expandRow(TEMPLATES[k][hands.from]!);
       for (let x = left[0]; x <= left[1]; x++) expect(row[x], `${k} col ${x}`).not.toBe('.');
     }
+  });
+});
+
+describe('renderOverlay', () => {
+  const ramp = rampFor('steel');
+  const layer = () => {
+    const px = new Uint8ClampedArray(SPRITE_SIZE * SPRITE_SIZE * 4);
+    for (let step = 0; step < RAMP_STOPS; step++) {
+      const i = step * 4;
+      const v = Math.round(step * (255 / (RAMP_STOPS - 1)));
+      px[i] = v; px[i + 1] = v; px[i + 2] = v; px[i + 3] = 255;
+    }
+    return px;
+  };
+
+  // An icon and the sprite in the character's hand must be the same art through
+  // the same ramp, or the bag lies about what you're carrying.
+  it('paints the same ramp colors the body composite does', () => {
+    const icon = renderOverlay(layer(), { layer: 'test', ramp });
+    const worn = renderComposite({ klass: 'fighter' }, [{ pixels: layer(), visual: { layer: 'test', ramp } }]);
+    for (let step = 0; step < RAMP_STOPS; step++) {
+      expect([...icon.slice(step * 4, step * 4 + 3)], `stop ${step}`)
+        .toEqual([...worn.slice(step * 4, step * 4 + 3)]);
+    }
+  });
+
+  it('leaves the background transparent — no body underneath', () => {
+    const icon = renderOverlay(layer(), { layer: 'test', ramp });
+    expect(icon[(SPRITE_SIZE * 10) * 4 + 3]).toBe(0);
+  });
+
+  it('carries the brand tint but not the rarity glow', () => {
+    const glowed = renderOverlay(layer(), { layer: 'test', ramp, glow: '#ff8c2a', tint: '#ff6b2a' });
+    const plain = renderOverlay(layer(), { layer: 'test', ramp });
+    expect(glowed[(RAMP_STOPS - 1) * 4]).toBeGreaterThan(plain[(RAMP_STOPS - 1) * 4]!); // tinted
+    expect(glowed[SPRITE_SIZE * 4 + 3]).toBe(0);                                        // no halo
+  });
+});
+
+describe('opaqueBounds', () => {
+  it('returns null for art with nothing in it', () => {
+    expect(opaqueBounds(new Uint8ClampedArray(SPRITE_SIZE * SPRITE_SIZE * 4))).toBeNull();
+  });
+
+  it('tightly bounds the lit pixels', () => {
+    const px = new Uint8ClampedArray(SPRITE_SIZE * SPRITE_SIZE * 4);
+    const put = (x: number, y: number) => { px[(y * SPRITE_SIZE + x) * 4 + 3] = 255; };
+    put(5, 8); put(9, 20);
+    expect(opaqueBounds(px)).toEqual({ x: 5, y: 8, w: 5, h: 13 });
   });
 });

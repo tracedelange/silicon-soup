@@ -277,6 +277,48 @@ function blend(out: Uint8ClampedArray, i: number, src: RGB, a: number): void {
 }
 
 /**
+ * Recolor one overlay on its own, with no body under it — the item as an
+ * object rather than as worn gear. This is what an inventory, merchant or loot
+ * icon draws, so a bag icon and the sprite in the character's hand are
+ * guaranteed to be the same art through the same ramp.
+ *
+ * Deliberately skips the rarity glow: in a slot, rarity is already carried by
+ * the border and the name color, and a halo there just muddies the silhouette.
+ */
+export function renderOverlay(pixels: Uint8ClampedArray, visual: GearVisual): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(SPRITE_SIZE * SPRITE_SIZE * 4);
+  const shades = rampToRGB(visual.ramp);
+  const tint = visual.tint ? parseHex(visual.tint) : null;
+  for (let p = 0; p < SPRITE_SIZE * SPRITE_SIZE; p++) {
+    const i = p * 4;
+    const a = pixels[i + 3] ?? 0;
+    if (a === 0) continue;
+    const step = rampStep(pixels[i]!, pixels[i + 1]!, pixels[i + 2]!);
+    let c = shades[step]!;
+    if (tint) c = mix(c, tint, step >= RAMP_STOPS - 2 ? 0.55 : step === RAMP_STOPS - 3 ? 0.25 : 0);
+    out[i] = c[0]; out[i + 1] = c[1]; out[i + 2] = c[2]; out[i + 3] = a;
+  }
+  return out;
+}
+
+/** Tight bounds of the non-transparent pixels, or null when nothing is lit.
+ *  Icons trim to this so a tall sword and a squat helm both fill their slot. */
+export function opaqueBounds(rgba: Uint8ClampedArray, size = SPRITE_SIZE):
+  { x: number; y: number; w: number; h: number } | null {
+  let x0 = size, y0 = size, x1 = -1, y1 = -1;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if ((rgba[(y * size + x) * 4 + 3] ?? 0) === 0) continue;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+  }
+  return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+/**
  * Composite a body and its equipment overlays into one 64x64 RGBA buffer.
  *
  * Layers draw in the order given (gearVisuals already returns bottom-to-top).

@@ -3,8 +3,10 @@ import { ARMOR_SLOTS, BLOCKING_TILES, EQUIPMENT_SLOTS, SCALING_COEFFS, ABILITY_S
 import { buildSpriteColorMap, buildTileColorMap, pickSeamTile, pickTileVariant } from '../../shared/tileset.ts';
 import { renderAbilityIcon } from '../../shared/abilityIcon.ts';
 import { rarityColor } from '../../shared/itemVisuals.ts';
-import { getPlayerSprite } from './playerSprite.ts';
+import { getPlayerSprite, whenLayerLoads } from './playerSprite.ts';
 import { snapDamped, stepDamped, type Damped } from '../../shared/motion.ts';
+import { getItemIcon, itemIconEl } from './itemIcon.ts';
+import type { VisualSource } from '../../shared/itemVisuals.ts';
 import type { IconSpec } from '../../shared/abilityIcon.ts';
 import {
   isWild, wildTile, wildEntities, wildActiveZones, wildWalkable, discoveredSites, revealedSites, getWildAtlas, getWildSeeds,
@@ -113,6 +115,7 @@ const tfStatus      = document.getElementById('tf-status')!;
 const chatInput = document.getElementById('chat-input') as HTMLInputElement;
 const chatLog = document.getElementById('chat-log')!;
 const sheetBackdrop = document.getElementById('charsheet-backdrop')!;
+const csPortrait = document.getElementById('cs-portrait')!;
 const csName = document.getElementById('cs-name')!;
 const csClass = document.getElementById('cs-class')!;
 const csLevel = document.getElementById('cs-level')!;
@@ -227,6 +230,14 @@ const EQ_LAYOUT: (EquipSlot | null)[][] = [
 
 function invOpen(): boolean { return invBackdrop.classList.contains('open'); }
 
+// Overlays are fetched lazily, so art can land after a panel has already drawn
+// its text fallback. The inventory's signature check would hold that fallback
+// until something else changed, so force the panels that derive art to repaint.
+whenLayerLoads(() => {
+  if (invOpen()) renderInventory(true);
+  if (sheetBackdrop.classList.contains('open')) renderCharSheet();
+});
+
 // Which item the inventory panel is showing. Left-clicking a cell only ever
 // SELECTS it; every verb (equip, unequip, use, drop) is a button in the detail
 // panel. That keeps the action buttons on DOM nodes that only change when the
@@ -296,7 +307,11 @@ function renderItemDetail(stack: InventoryStack | null): void {
   const slot = stack.item_slot ?? '';
   const color = rarityColor(rarity);
 
-  let html = `<div class="idd-name" style="color:${color}">${stack.name || stack.base || 'Item'}</div>`;
+  let html = '';
+  // Placeholder the icon slot in the markup, then fill it after — the rest of
+  // this panel is built as an HTML string and a canvas can't go in one.
+  if (getItemIcon(stack)) html += '<div class="idd-icon"></div>';
+  html += `<div class="idd-name" style="color:${color}">${stack.name || stack.base || 'Item'}</div>`;
   if (rarity !== 'common') {
     html += `<div class="idd-rarity" style="color:${color}">${rarity}</div>`;
   }
@@ -397,6 +412,8 @@ function renderItemDetail(stack: InventoryStack | null): void {
   }
 
   invDetail.innerHTML = html;
+  const iconBox = invDetail.querySelector('.idd-icon');
+  if (iconBox) iconBox.appendChild(itemIconEl(stack, 56)!);
   appendItemActions(stack);
 }
 
@@ -521,16 +538,22 @@ function renderInventory(force = false): void {
       const eq = equipment?.[slot];
       const isSelected = invSelection?.kind === 'equip' && invSelection.slot === slot;
       cell.className = 'eq-cell' + (eq ? ' filled' : '') + (isSelected ? ' selected' : '');
-      const label = document.createElement('div');
-      label.className = 'eq-item-name';
-      label.textContent = eq ? (eq.name || eq.base || '?') : '—';
-      if (eq?.item?.components?.equipment?.rarity) {
-        label.style.color = rarityColor(eq.item.components.equipment.rarity as string);
+      // An icon says what the item IS at a glance; the name is the fallback for
+      // everything still without art, so only one of the two is ever shown.
+      const icon = eq ? itemIconEl(eq, 32) : null;
+      if (icon) cell.appendChild(icon);
+      else {
+        const label = document.createElement('div');
+        label.className = 'eq-item-name';
+        label.textContent = eq ? (eq.name || eq.base || '?') : '—';
+        if (eq?.item?.components?.equipment?.rarity) {
+          label.style.color = rarityColor(eq.item.components.equipment.rarity as string);
+        }
+        cell.appendChild(label);
       }
       const sub = document.createElement('div');
       sub.className = 'eq-slot-name';
       sub.textContent = slot;
-      cell.appendChild(label);
       cell.appendChild(sub);
       if (eq) {
         cell.title = stackTooltip(eq);
@@ -554,10 +577,14 @@ function renderInventory(force = false): void {
     const isSelected = invSelection?.kind === 'bag' && invSelection.slot === i;
     cell.className = 'slot' + (stack ? ' filled' : ' empty') + (rarity ? ` rarity-${rarity}` : '') +
       (isSelected ? ' selected' : '');
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'slot-item-name';
-    nameSpan.textContent = stack ? (stack.name || stack.base || '?') : '·';
-    cell.appendChild(nameSpan);
+    const icon = stack ? itemIconEl(stack, 34) : null;
+    if (icon) cell.appendChild(icon);
+    else {
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'slot-item-name';
+      nameSpan.textContent = stack ? (stack.name || stack.base || '?') : '·';
+      cell.appendChild(nameSpan);
+    }
     if (stack && rarity) cell.style.color = rarityColor(rarity);
     cell.dataset.slot = String(i);
     if (stack) {
@@ -670,6 +697,10 @@ function renderLootBody(loot: LootSlot[]): void {
   for (const slot of loot) {
     const row = document.createElement('div');
     row.className = 'loot-row';
+    // Loot slots carry the same base/item shape a bag stack does, which is all
+    // the icon needs — no extra wire field for the corpse window.
+    const lootIcon = slot.gold > 0 ? null : itemIconEl(slot, 20);
+    if (lootIcon) row.appendChild(lootIcon);
     const nameEl = document.createElement('span');
     nameEl.className = 'loot-item-name';
     nameEl.textContent = slot.gold > 0 ? `${slot.gold} Gold` : slot.name;
@@ -1610,7 +1641,7 @@ function renderFeatured(gold: number): void {
       },
       `${stackTooltip(fi.stack)}\nItem level: ${fi.ilvl}`,
       stats.join('  ·  '),
-      { rowClass: 'featured', nameColor: rarityColor(eq.rarity) },
+      { rowClass: 'featured', nameColor: rarityColor(eq.rarity), stack: fi.stack },
     );
   }
 }
@@ -1625,11 +1656,13 @@ function appendTradeRow(
   onClick: () => void,
   tooltip?: string,
   statLine?: string,
-  opts: { rowClass?: string; nameColor?: string } = {},
+  opts: { rowClass?: string; nameColor?: string; stack?: VisualSource } = {},
 ): void {
   const row = document.createElement('div');
   row.className = 'trade-row' + (opts.rowClass ? ` ${opts.rowClass}` : '');
   if (tooltip) row.title = tooltip;
+  const rowIcon = opts.stack ? itemIconEl(opts.stack, 22) : null;
+  if (rowIcon) row.appendChild(rowIcon);
   const name = document.createElement('span');
   name.className = 'trade-row-name';
   const nameText = document.createElement('span');
@@ -1684,7 +1717,10 @@ function renderTrade(): void {
         const r = await state.sendTrade({ mobId: activeTradeMob.id, action: 'buy', itemBase: si.item });
         if (r.ok && r.self) { state.self = r.self; renderTrade(); }
         else tradeErr.textContent = TRADE_ERR_MSG[r.reason ?? ''] || r.reason || 'Trade failed.';
-      }, shopItemTooltip(si), shopItemStatParts(si).join('  ·  '));
+      }, shopItemTooltip(si), shopItemStatParts(si).join('  ·  '),
+        // Plain stock is a base id and a price, no rolled item — which is all
+        // an icon needs, since shape and ramp both come from the base.
+        { stack: { base: si.item } });
     }
   } else {
     const inv = s.components?.inventory?.slots || [];
@@ -1699,7 +1735,9 @@ function renderTrade(): void {
       cell.className = 'slot' + (stack ? (unsellable ? ' unsellable' : ' filled') : ' empty');
       if (rarity && !unsellable) cell.style.color = rarityColor(rarity);
       if (pendingSell?.slotIndex === i) cell.classList.add('selected');
-      cell.textContent = stack ? (stack.name || stack.base || '?') : '·';
+      const sellIcon = stack ? itemIconEl(stack, 34) : null;
+      if (sellIcon) cell.appendChild(sellIcon);
+      else cell.textContent = stack ? (stack.name || stack.base || '?') : '·';
       if (stack) cell.title = stackTooltip(stack);
       if (stack && !unsellable) {
         hasItems = true;
@@ -3403,6 +3441,17 @@ function renderCharSheet(): void {
   const dmg = effectiveDamageRange(s);
   const dex = stats.dexterity || 0;
   const dodgePct = Math.min(30, dex);
+  // The same composite the world draws, at 2x — what you're wearing, not a
+  // stock portrait, so equipping something is visible here immediately.
+  const doll = getPlayerSprite(s.klass, s.color, s.components?.equipment);
+  const dollEl = document.createElement('canvas');
+  dollEl.width = doll.width * 2;
+  dollEl.height = doll.height * 2;
+  const dollCtx = dollEl.getContext('2d')!;
+  dollCtx.imageSmoothingEnabled = false;
+  dollCtx.drawImage(doll, 0, 0, dollEl.width, dollEl.height);
+  csPortrait.replaceChildren(dollEl);
+
   csName.textContent = s.name || 'Player';
   csClass.textContent = classDisplay(s.klass);
   csLevel.textContent = String(prog.level);

@@ -10,7 +10,7 @@
 // not a drawing.
 
 import { BRAND_KEYS } from './constants.ts';
-import type { Equipment, InventoryStack } from './types.ts';
+import type { Equipment, ItemEntity } from './types.ts';
 
 /** A material's 5-stop shade ramp, darkest first. Overlay art is authored in
  *  five key grays (0/64/128/192/255); each maps to the stop at its index. */
@@ -117,7 +117,29 @@ export interface GearVisual {
  *  they stay inventory-only. Order is bottom-to-top draw order. */
 const OVERLAY_SLOTS = ['chest', 'helmet', 'mainhand'] as const;
 
-function visualFor(slot: (typeof OVERLAY_SLOTS)[number], stack: InventoryStack | null): GearVisual | null {
+/** Archetypes worn rather than swung. Their overlays are silhouettes per weight
+ *  class, not shapes per archetype: a Steel Chest and a Wool Chest differ by
+ *  ramp and weight, nothing else. */
+const ARMOR_ARCHETYPES = new Set(['helmet', 'chest', 'gloves', 'leggings', 'boots']);
+
+/** The least an item has to be for art to be resolved from it. Satisfied by an
+ *  InventoryStack, a LootSlot, and a merchant's plain `{ base }` stock line —
+ *  all three want the same icon, and none should have to pretend to be another. */
+export interface VisualSource {
+  base?: string;
+  item?: ItemEntity | null;
+}
+
+/**
+ * Resolve one item to the art that represents it — used both for the layer a
+ * worn piece composites onto the body, and for the icon the same item shows in
+ * a bag, a merchant list or a corpse. It's the same drawing either way, which
+ * is why an inventory icon needs no assets of its own.
+ *
+ * Derives armor-vs-weapon from the archetype rather than the equip slot, so it
+ * works for an item sitting in a bag that isn't equipped anywhere.
+ */
+export function itemVisual(stack: VisualSource | null | undefined): GearVisual | null {
   const parsed = parseBaseId(stack?.base);
   // A known material is the signal that this id is a composed base and not a
   // hand-authored one from world/entities/items/bases/ that merely happens to
@@ -128,15 +150,15 @@ function visualFor(slot: (typeof OVERLAY_SLOTS)[number], stack: InventoryStack |
   const eq = stack?.item?.components?.equipment;
   const rarity = eq?.rarity as string | undefined;
   const brand = eq?.rolled?.weapon_brand as string | undefined;
+  const armor = ARMOR_ARCHETYPES.has(parsed.archetype);
 
-  // Armor overlays are silhouettes, not per-archetype shapes: a Steel Chest and
-  // a Wool Chest differ by weight class and ramp, nothing else.
-  const layer = slot === 'mainhand' ? parsed.archetype : `${parsed.archetype}_${weightFor(parsed.material)}`;
-
-  const v: GearVisual = { layer, ramp: rampFor(parsed.material) };
+  const v: GearVisual = {
+    layer: armor ? `${parsed.archetype}_${weightFor(parsed.material)}` : parsed.archetype,
+    ramp: rampFor(parsed.material),
+  };
   if (rarity && rarity !== 'common') v.glow = rarityColor(rarity);
   // A brand only reads on the thing that swings; branded armor doesn't exist.
-  if (slot === 'mainhand' && brand && BRAND_COLORS[brand]) v.tint = BRAND_COLORS[brand];
+  if (!armor && brand && BRAND_COLORS[brand]) v.tint = BRAND_COLORS[brand];
   return v;
 }
 
@@ -147,7 +169,7 @@ export function gearVisuals(equipment: Equipment | undefined): GearVisual[] {
   if (!equipment) return [];
   const out: GearVisual[] = [];
   for (const slot of OVERLAY_SLOTS) {
-    const v = visualFor(slot, equipment[slot] ?? null);
+    const v = itemVisual(equipment[slot] ?? null);
     if (v) out.push(v);
   }
   return out;
