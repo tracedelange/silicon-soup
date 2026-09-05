@@ -3,8 +3,9 @@
 // sprite — the game draws what was baked — so the client bundle has no reason
 // to carry this.
 
-import { GRID, POSE_ANCHORS, SPRITE_SIZE, handColumns } from '../../shared/playerComposite.ts';
+import { SPRITE_SIZE, handColumns } from '../../shared/playerComposite.ts';
 import type { ClassId } from '../../shared/types.ts';
+import { readAnchors, resolveBody } from './bodyStore.ts';
 import { TRANSPARENT } from './playerSpritePng.ts';
 
 export interface Pivot { x: number; y: number }
@@ -18,13 +19,13 @@ export const CENTRE_PIVOT: Pivot = { x: SPRITE_SIZE / 2, y: SPRITE_SIZE / 2 };
  * be read, since a slightly wrong pivot beats refusing to rotate.
  */
 export function handPivot(klass: ClassId): Pivot {
-  const hands = handColumns(klass);
-  const rows = POSE_ANCHORS.find((a) => a.label === 'hands');
+  const anchors = readAnchors();
+  const hands = handColumns(resolveBody(klass), anchors);
+  const rows = anchors.find((a) => a.label === 'hands');
   if (!hands || !rows) return CENTRE_PIVOT;
-  const cell = SPRITE_SIZE / GRID;
   return {
-    x: ((hands.right[0] + hands.right[1] + 1) / 2) * cell,
-    y: ((rows.from + rows.to + 1) / 2) * cell,
+    x: (hands.right[0] + hands.right[1] + 1) / 2,
+    y: (rows.from + rows.to + 1) / 2,
   };
 }
 

@@ -18,19 +18,24 @@ import type { GearVisual, Ramp } from './itemVisuals.ts';
 // trick, and full resolution, so a weapon can carry finer detail than the
 // 2px-celled body it hangs off.
 
+/** The half-width authoring grid the built-in class templates are written on.
+ *  Only they use it — everything downstream is full 64x64 sprite pixels. */
 export const GRID = 32;
 const CELL = 2;
 export const SPRITE_SIZE = GRID * CELL;
 
-/** The pose contract every overlay is drawn against, in GRID rows. Overlay art
- *  that ignores these lands on the wrong part of the body; the sprite-lab
- *  guide overlay draws them straight from this table. */
-export const POSE_ANCHORS: readonly { label: string; from: number; to: number }[] = [
-  { label: 'head', from: 3, to: 13 },
-  { label: 'shoulders', from: 14, to: 14 },
-  { label: 'hands', from: 19, to: 20 },
-  { label: 'belt', from: 20, to: 22 },
-  { label: 'feet', from: 29, to: 29 },
+export interface PoseAnchor { label: string; from: number; to: number }
+
+/** The pose contract every overlay is drawn against, in SPRITE PIXEL rows.
+ *  Defaults describing the built-in templates; a custom body ships its own set
+ *  (the sprite-lab writes them next to the body it describes), because a body
+ *  drawn to different proportions moves every landmark on it. */
+export const POSE_ANCHORS: readonly PoseAnchor[] = [
+  { label: 'head', from: 6, to: 27 },
+  { label: 'shoulders', from: 28, to: 29 },
+  { label: 'hands', from: 38, to: 41 },
+  { label: 'belt', from: 40, to: 45 },
+  { label: 'feet', from: 58, to: 59 },
 ];
 
 // Template legend (left half; each row mirrors to 32 cols):
@@ -165,32 +170,80 @@ const CLASS_COLORS: Record<ClassId, Record<string, string>> = {
   wizard: { s: '#e6c39a', S: '#c49b6f', h: '#ddd8ce' },
 };
 
-/** The body's arm span at the hand rows, in GRID columns — where a weapon's
- *  grip has to land. Derived from the template rather than declared, so
+/** The body's arm span at the hand rows, in sprite pixels — where a weapon's
+ *  grip has to land. Derived from the body art rather than declared, so
  *  redrawing a body moves the marker with it instead of silently lying.
  *
  *  Arms read as outline-flanked runs at the outer edge of the hand rows
- *  (`......oGGoGggggL`), so the span is the first lit column inward to the
- *  second outline cell. Returns null if a template has no hands anchor or no
- *  such run, which is a reason to show no marker, not to throw.
+ *  (`......oGGoGggggL`), so the span runs from the first lit column inward to
+ *  the end of the SECOND outline run — runs, not cells, because a body drawn at
+ *  full resolution has outlines two or more pixels thick. Returns null when a
+ *  body has no hands anchor or no such run, which is a reason to draw no
+ *  marker, not to throw.
  */
-export function handColumns(klass: ClassId): { left: [number, number]; right: [number, number] } | null {
-  const hands = POSE_ANCHORS.find((a) => a.label === 'hands');
-  const rows = TEMPLATES[klass in TEMPLATES ? klass : 'fighter'];
-  const row = hands ? rows[hands.from] : undefined;
+export function handColumns(
+  body: BodyArt,
+  anchors: readonly PoseAnchor[] = POSE_ANCHORS,
+): { left: [number, number]; right: [number, number] } | null {
+  const hands = anchors.find((a) => a.label === 'hands');
+  const row = hands ? body.rows[hands.from] : undefined;
   if (!row) return null;
 
   const from = [...row].findIndex((ch) => ch !== '.');
   if (from < 0) return null;
-  let outlines = 0;
-  let to = from;
+  let runs = 0;
+  let prevOutline = false;
   for (let x = from; x < row.length; x++) {
     if (row[x] === '.') return null;
-    if (row[x] === 'o' && ++outlines === 2) { to = x; break; }
+    const outline = row[x] === 'o';
+    if (outline && !prevOutline) runs++;
+    // The arm ends where its inner outline run does.
+    if (!outline && prevOutline && runs === 2) {
+      const to = x - 1;
+      const w = row.length;
+      return { left: [from, to], right: [w - 1 - to, w - 1 - from] };
+    }
+    prevOutline = outline;
   }
-  if (outlines < 2) return null;
-  // The right arm is the left one mirrored about the grid centre.
-  return { left: [from, to], right: [GRID - 1 - to, GRID - 1 - from] };
+  return null;
+}
+
+/** A body at full sprite resolution: SPRITE_SIZE rows of SPRITE_SIZE legend
+ *  characters, '.' for transparent. This is the editable form — the built-in
+ *  half-width class templates are one way to produce it, a file drawn in the
+ *  sprite-lab is another, and the compositor only ever sees this. */
+export interface BodyArt { rows: string[] }
+
+/** Legend characters in palette order, with what each one means. The editor
+ *  builds its swatch row from this, so a role added here shows up there. */
+export const BODY_ROLES: readonly { ch: string; label: string }[] = [
+  { ch: 'o', label: 'outline' },
+  { ch: 'd', label: 'face shadow' },
+  { ch: 's', label: 'skin' },
+  { ch: 'S', label: 'skin shade' },
+  { ch: 'w', label: 'eye white' },
+  { ch: 'e', label: 'eye dark' },
+  { ch: 'h', label: 'hair' },
+  { ch: 'b', label: 'leather' },
+  { ch: 'B', label: 'leather shade' },
+  { ch: 'm', label: 'metal' },
+  { ch: 'M', label: 'metal shade' },
+  { ch: 'L', label: 'garment light' },
+  { ch: 'g', label: 'garment mid' },
+  { ch: 'G', label: 'garment dark' },
+];
+
+/** Expand a built-in class template to full resolution: mirror each half-row,
+ *  then double both axes, which is exactly what the old 2px-cell compositor
+ *  drew. Seeds a new editable body from the art that already exists. */
+export function templateBody(klass: ClassId): BodyArt {
+  const half = TEMPLATES[klass in TEMPLATES ? klass : 'fighter'];
+  const rows: string[] = [];
+  for (const line of half) {
+    const full = [...expandRow(line)].map((ch) => ch + ch).join('');
+    rows.push(full, full);
+  }
+  return { rows };
 }
 
 export type RGB = readonly [number, number, number];
@@ -256,6 +309,8 @@ export interface CompositeLayer {
 export interface CompositeSpec {
   klass: ClassId;
   color?: string;
+  /** A custom body. Omit to use the built-in template for the class. */
+  body?: BodyArt;
 }
 
 function rampToRGB(ramp: Ramp): RGB[] {
@@ -332,19 +387,16 @@ export function renderComposite(spec: CompositeSpec, layers: readonly CompositeL
   const out = new Uint8ClampedArray(SPRITE_SIZE * SPRITE_SIZE * 4);
 
   const palette = buildPalette(klass, spec.color || DEFAULT_COLOR);
-  const rows = TEMPLATES[klass];
-  for (let y = 0; y < GRID; y++) {
-    const row = expandRow(rows[y]!);
-    for (let x = 0; x < GRID; x++) {
-      const ch = row[x]!;
-      if (ch === '.') continue;
+  const body = spec.body ?? templateBody(klass);
+  for (let y = 0; y < SPRITE_SIZE; y++) {
+    const row = body.rows[y];
+    if (!row) continue;
+    for (let x = 0; x < SPRITE_SIZE; x++) {
+      const ch = row[x];
+      if (!ch || ch === '.') continue;
       const c = palette[ch] ?? palette['g']!;
-      for (let dy = 0; dy < CELL; dy++) {
-        for (let dx = 0; dx < CELL; dx++) {
-          const i = ((y * CELL + dy) * SPRITE_SIZE + (x * CELL + dx)) * 4;
-          out[i] = c[0]; out[i + 1] = c[1]; out[i + 2] = c[2]; out[i + 3] = 255;
-        }
-      }
+      const i = (y * SPRITE_SIZE + x) * 4;
+      out[i] = c[0]; out[i + 1] = c[1]; out[i + 2] = c[2]; out[i + 3] = 255;
     }
   }
 

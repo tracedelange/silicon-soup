@@ -3,7 +3,7 @@ import { rampFor } from './itemVisuals.ts';
 import type { GearVisual } from './itemVisuals.ts';
 import {
   GRID, POSE_ANCHORS, RAMP_STOPS, SPRITE_SIZE, TEMPLATES,
-  buildPalette, expandRow, handColumns, opaqueBounds, renderComposite, renderOverlay,
+  buildPalette, expandRow, handColumns, opaqueBounds, renderComposite, renderOverlay, templateBody,
 } from './playerComposite.ts';
 import type { ClassId } from './types.ts';
 
@@ -58,10 +58,10 @@ describe('body templates', () => {
     }
   });
 
-  it('keep every pose anchor inside the grid', () => {
+  it('keep every pose anchor inside the sprite', () => {
     for (const a of POSE_ANCHORS) {
       expect(a.from, a.label).toBeGreaterThanOrEqual(0);
-      expect(a.to, a.label).toBeLessThan(GRID);
+      expect(a.to, a.label).toBeLessThan(SPRITE_SIZE);
       expect(a.to, a.label).toBeGreaterThanOrEqual(a.from);
     }
   });
@@ -170,31 +170,64 @@ describe('rarity glow', () => {
 });
 
 describe('handColumns', () => {
-  it('finds an arm span inside the grid for every class', () => {
+  it('finds an arm span inside the sprite for every class', () => {
     for (const k of CLASSES) {
-      const hands = handColumns(k);
+      const hands = handColumns(templateBody(k));
       expect(hands, k).not.toBeNull();
       const { left, right } = hands!;
       expect(left[0], k).toBeGreaterThanOrEqual(0);
       expect(left[1], k).toBeGreaterThan(left[0]);
-      expect(right[1], k).toBeLessThan(GRID);
+      expect(right[1], k).toBeLessThan(SPRITE_SIZE);
     }
   });
 
-  it('mirrors the two arms about the grid centre, as the template does', () => {
+  it('mirrors the two arms about the centre, as the template does', () => {
     for (const k of CLASSES) {
-      const { left, right } = handColumns(k)!;
-      expect([GRID - 1 - right[1], GRID - 1 - right[0]], k).toEqual(left);
+      const { left, right } = handColumns(templateBody(k))!;
+      expect([SPRITE_SIZE - 1 - right[1], SPRITE_SIZE - 1 - right[0]], k).toEqual(left);
     }
   });
 
   // The whole point of the marker: a grip drawn there must land on the body.
-  it('lands on lit template cells at the hand rows', () => {
+  it('lands on lit body cells at the hand rows', () => {
     const hands = POSE_ANCHORS.find((a) => a.label === 'hands')!;
     for (const k of CLASSES) {
-      const { left } = handColumns(k)!;
-      const row = expandRow(TEMPLATES[k][hands.from]!);
+      const body = templateBody(k);
+      const { left } = handColumns(body)!;
+      const row = body.rows[hands.from]!;
       for (let x = left[0]; x <= left[1]; x++) expect(row[x], `${k} col ${x}`).not.toBe('.');
+    }
+  });
+
+  // Full-resolution outlines are two pixels thick, so the scan has to count
+  // outline RUNS. Counting cells would stop inside the arm's own outer edge.
+  it('spans more than a single outline run', () => {
+    for (const k of CLASSES) {
+      const { left } = handColumns(templateBody(k))!;
+      expect(left[1] - left[0], k).toBeGreaterThan(2);
+    }
+  });
+
+  it('returns null for a body with no art on the hand rows', () => {
+    expect(handColumns({ rows: Array(SPRITE_SIZE).fill('.'.repeat(SPRITE_SIZE)) })).toBeNull();
+  });
+});
+
+describe('templateBody', () => {
+  it('expands every class to a full-resolution square', () => {
+    for (const k of CLASSES) {
+      const { rows } = templateBody(k);
+      expect(rows, k).toHaveLength(SPRITE_SIZE);
+      for (const r of rows) expect(r.length, k).toBe(SPRITE_SIZE);
+    }
+  });
+
+  // The expansion has to be exactly what the old 2px-cell compositor drew, or
+  // seeding an editable body from a class silently changes that class.
+  it('renders identically to the built-in path it replaces', () => {
+    for (const k of CLASSES) {
+      expect(renderComposite({ klass: k, color: '#6ec6f0', body: templateBody(k) }), k)
+        .toEqual(renderComposite({ klass: k, color: '#6ec6f0' }));
     }
   });
 });

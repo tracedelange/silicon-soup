@@ -1,7 +1,7 @@
 import { gearVisuals, visualSignature } from '../../shared/itemVisuals.ts';
 import type { GearVisual } from '../../shared/itemVisuals.ts';
 import { SPRITE_SIZE, renderComposite } from '../../shared/playerComposite.ts';
-import type { CompositeLayer } from '../../shared/playerComposite.ts';
+import type { BodyArt, CompositeLayer } from '../../shared/playerComposite.ts';
 import type { ClassId, Equipment } from '../../shared/types.ts';
 
 // Browser side of the paper-doll: load the grayscale gear overlays, hand them
@@ -20,6 +20,36 @@ type LayerState = Uint8ClampedArray | 'loading' | 'missing';
 
 const layers = new Map<string, LayerState>();
 const composites = new Map<string, HTMLCanvasElement>();
+
+// Custom bodies, drawn in the sprite-lab and served from /body/<name>.json.
+// A class uses its own file, else the shared one, else the built-in template —
+// so drawing `default.json` alone puts every class on one body, and deleting it
+// reverts the lot.
+type BodyState = BodyArt | 'loading' | 'missing';
+const bodies = new Map<string, BodyState>();
+const SHARED_BODY = 'default';
+
+function bodyArt(name: string): BodyArt | null {
+  const hit = bodies.get(name);
+  if (hit) return typeof hit === 'string' ? null : hit;
+
+  bodies.set(name, 'loading');
+  fetch(`/body/${name}.json`)
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('absent'))))
+    .then((body: BodyArt) => {
+      bodies.set(name, body);
+      composites.clear();
+      for (const fn of onLayerLoad) fn();
+    })
+    .catch(() => { bodies.set(name, 'missing'); });
+  return null;
+}
+
+/** The body in force for a class, or null while nothing custom has arrived —
+ *  in which case renderComposite falls back to the built-in template on its own. */
+function resolveBody(klass: ClassId): BodyArt | undefined {
+  return bodyArt(klass) ?? bodyArt(SHARED_BODY) ?? undefined;
+}
 
 /** Decode a 64x64 overlay PNG into raw RGBA via a scratch canvas. */
 function decode(img: HTMLImageElement): Uint8ClampedArray {
@@ -63,7 +93,7 @@ function compose(klass: ClassId, color: string, visuals: GearVisual[]): HTMLCanv
     const pixels = gearLayerPixels(visual.layer);
     if (pixels) ready.push({ pixels, visual });
   }
-  const rgba = renderComposite({ klass, color }, ready);
+  const rgba = renderComposite({ klass, color, body: resolveBody(klass) }, ready);
   const canvas = document.createElement('canvas');
   canvas.width = SPRITE_SIZE;
   canvas.height = SPRITE_SIZE;

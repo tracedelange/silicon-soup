@@ -15,13 +15,20 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, rarityColor } from '../../shared/itemVisuals.ts';
-import { GRID, POSE_ANCHORS, SPRITE_SIZE, TEMPLATES, handColumns, renderComposite } from '../../shared/playerComposite.ts';
+import {
+  BODY_ROLES, SPRITE_SIZE, TEMPLATES, buildPalette, handColumns, renderComposite, templateBody,
+} from '../../shared/playerComposite.ts';
+import type { BodyArt, PoseAnchor } from '../../shared/playerComposite.ts';
 import type { ClassId, Equipment, InventoryStack } from '../../shared/types.ts';
 import {
   GEAR_DIR, LayerSizeError, TRANSPARENT, loadGearLayer, pixelsToSteps,
   playerSpritePng, rgbaToPng, saveGearLayer, stepsToPixels,
 } from '../lib/playerSpritePng.ts';
 import { CENTRE_PIVOT, handPivot, rotateSteps } from '../lib/spriteTransform.ts';
+import {
+  BODY_DIR, BodyShapeError, SHARED_BODY, bodySource, readAnchors, readBody,
+  resolveBody, validateBody, writeAnchors, writeBody,
+} from '../lib/bodyStore.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -49,6 +56,8 @@ function drawnLayers(): string[] {
 }
 
 app.get('/api/meta', (_req, res) => {
+  const anchors = readAnchors();
+  const bodyPalette = buildPalette('fighter', '#6ec6f0');
   const materials = readYaml<MaterialRow>('world/entities/items/materials.yaml', 'materials');
   const archetypes = readYaml<ArchetypeRow>('world/entities/items/archetypes.yaml', 'archetypes');
   res.json({
@@ -57,12 +66,21 @@ app.get('/api/meta', (_req, res) => {
     archetypes,
     rarities: ['common', 'uncommon', 'rare', 'legendary'].map((r) => ({ id: r, color: rarityColor(r) })),
     brands: Object.entries(BRAND_COLORS).map(([id, color]) => ({ id, color })),
-    poseAnchors: POSE_ANCHORS,
-    // Per class, since each body's arms sit at slightly different columns.
+    poseAnchors: anchors,
+    // Per class, since each body's arms sit at slightly different columns —
+    // and read off the body in force, not the built-in template, so a custom
+    // body moves the marker the moment it's saved.
     handColumns: Object.fromEntries(
-      Object.keys(TEMPLATES).map((k) => [k, handColumns(k as ClassId)]),
+      Object.keys(TEMPLATES).map((k) => [k, handColumns(resolveBody(k as ClassId), anchors)]),
     ),
-    grid: GRID,
+    bodies: Object.fromEntries(Object.keys(TEMPLATES).map((k) => [k, bodySource(k as ClassId)])),
+    sharedBody: SHARED_BODY,
+    // Each role with the color it paints at the default player color, so the
+    // editor's swatches show what a body cell will actually look like.
+    bodyRoles: BODY_ROLES.map((r) => {
+      const [red, g, b] = bodyPalette[r.ch] ?? [128, 128, 128];
+      return { ...r, hex: `#${[red, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}` };
+    }),
     spriteSize: SPRITE_SIZE,
     drawn: drawnLayers(),
   });
@@ -95,11 +113,13 @@ function sendSprite(
   res: express.Response,
   q: Record<string, unknown>,
   drafts?: Record<string, Uint8ClampedArray>,
+  bodyDraft?: BodyArt,
 ): void {
   const scale = Math.max(1, Math.min(16, Number(q.scale) || 6));
   try {
+    const klass = (q.klass as ClassId) || 'fighter';
     const { png, missing } = playerSpritePng(
-      { klass: (q.klass as ClassId) || 'fighter', color: (q.color as string) || '#6ec6f0' },
+      { klass, color: (q.color as string) || '#6ec6f0', body: bodyDraft ?? resolveBody(klass) },
       gearVisuals(equipmentFromQuery(q)),
       { scale, drafts },
     );
@@ -119,14 +139,20 @@ app.get('/api/sprite.png', (req, res) => sendSprite(res, req.query as Record<str
 /** Same render, but with the editor's unsaved art standing in for one layer —
  *  so a stroke shows up on the character before anything touches disk. */
 app.post('/api/sprite.png', (req, res) => {
-  const { params = {}, draft } = req.body as {
+  const { params = {}, draft, bodyDraft } = req.body as {
     params?: Record<string, unknown>;
     draft?: { layer?: string; steps?: number[] };
+    bodyDraft?: BodyArt;
   };
   const drafts = draft?.layer && Array.isArray(draft.steps)
     ? { [draft.layer]: stepsToPixels(draft.steps) }
     : undefined;
-  sendSprite(res, params, drafts);
+  try {
+    if (bodyDraft) validateBody(bodyDraft);
+  } catch (err) {
+    return res.status(400).json({ error: (err as Error).message });
+  }
+  sendSprite(res, params, drafts, bodyDraft);
 });
 
 /** The authored art for one overlay, as steps — what the editor loads into its
@@ -162,6 +188,44 @@ app.post('/api/rotate', (req, res) => {
   res.json({ steps: [...rotateSteps(steps, angle as number, at)], pivot: at });
 });
 
+/** A body to edit: the file if there is one, else whatever that name currently
+ *  falls back to, so "edit the shared body" starts from the art on screen
+ *  rather than a blank canvas. */
+app.get('/api/body/:name', (req, res) => {
+  const name = req.params.name;
+  if (!LAYER_RE.test(name)) return res.status(400).json({ error: `invalid body name: ${name}` });
+  try {
+    const stored = readBody(name);
+    const body = stored
+      ?? (name === SHARED_BODY ? templateBody('fighter') : resolveBody(name as ClassId));
+    res.json({ name, exists: !!stored, body });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+app.put('/api/body/:name', (req, res) => {
+  const name = req.params.name;
+  if (!LAYER_RE.test(name)) return res.status(400).json({ error: `invalid body name: ${name}` });
+  try {
+    writeBody(name, req.body as BodyArt);
+    res.json({ ok: true, path: `client/public/body/${name}.json` });
+  } catch (err) {
+    res.status(err instanceof BodyShapeError ? 400 : 500).json({ error: (err as Error).message });
+  }
+});
+
+app.get('/api/anchors', (_req, res) => res.json(readAnchors()));
+
+app.put('/api/anchors', (req, res) => {
+  try {
+    writeAnchors(req.body as PoseAnchor[]);
+    res.json({ ok: true, path: 'client/public/body/anchors.json' });
+  } catch (err) {
+    res.status(err instanceof BodyShapeError ? 400 : 500).json({ error: (err as Error).message });
+  }
+});
+
 app.put('/api/layer/:name', (req, res) => {
   const name = req.params.name;
   if (!LAYER_RE.test(name)) return res.status(400).json({ error: `invalid layer name: ${name}` });
@@ -187,21 +251,18 @@ app.put('/api/layer/:name', (req, res) => {
 app.get('/api/pose-guide.png', (req, res) => {
   const q = req.query as Record<string, unknown>;
   const scale = Math.max(1, Math.min(16, Number(q.scale) || 6));
-  const rgba = renderComposite({ klass: (q.klass as ClassId) || 'fighter', color: '#7f7f7f' });
-  const CELL = SPRITE_SIZE / GRID;
+  const klass = (q.klass as ClassId) || 'fighter';
+  const rgba = renderComposite({ klass, color: '#7f7f7f', body: resolveBody(klass) });
 
   for (let p = 0; p < SPRITE_SIZE * SPRITE_SIZE; p++) rgba[p * 4 + 3] = Math.round(rgba[p * 4 + 3]! * 0.45);
 
   // One magenta stripe per anchor band, full width, so a weapon's grip row and
   // an armor piece's shoulder line can be eyeballed against it.
-  for (const anchor of POSE_ANCHORS) {
-    for (let row = anchor.from; row <= anchor.to; row++) {
-      for (let dy = 0; dy < CELL; dy++) {
-        const y = row * CELL + dy;
-        for (let x = 0; x < SPRITE_SIZE; x += 2) {
-          const i = (y * SPRITE_SIZE + x) * 4;
-          rgba[i] = 255; rgba[i + 1] = 0; rgba[i + 2] = 200; rgba[i + 3] = 150;
-        }
+  for (const anchor of readAnchors()) {
+    for (let y = anchor.from; y <= anchor.to; y++) {
+      for (let x = 0; x < SPRITE_SIZE; x += 2) {
+        const i = (y * SPRITE_SIZE + x) * 4;
+        rgba[i] = 255; rgba[i + 1] = 0; rgba[i + 2] = 200; rgba[i + 3] = 150;
       }
     }
   }
@@ -211,5 +272,7 @@ app.get('/api/pose-guide.png', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[sprite-lab] http://localhost:${PORT}  (overlays in ${GEAR_DIR})`);
+  console.log(`[sprite-lab] http://localhost:${PORT}`);
+  console.log(`  overlays ${GEAR_DIR}`);
+  console.log(`  bodies   ${BODY_DIR}`);
 });

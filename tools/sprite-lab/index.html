@@ -63,6 +63,12 @@
   .note ol { padding-left: 18px; margin: 6px 0; }
   .note kbd { background: var(--panel2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; font: inherit; font-size: 11px; }
   .keyhelp { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin-top: 6px; }
+  .anchor { display: grid; grid-template-columns: 1fr 52px 52px; gap: 4px; align-items: center; margin-bottom: 4px; }
+  .anchor label { font-size: 12px; }
+  .anchor input { width: 100%; font: inherit; background: var(--bg); color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; }
+  .sw.role { width: 30px; height: 30px; font-size: 11px; }
+  .bodybadge { font-size: 11px; color: var(--dim); margin-left: 8px; }
 </style>
 </head>
 <body>
@@ -117,6 +123,21 @@
     </fieldset>
 
     <fieldset>
+      <legend>Pose anchors</legend>
+      <div class="note" style="margin-bottom:6px">
+        Landmark rows on the body, in sprite pixels. A body drawn to different
+        proportions moves all of them, so these are editable and saved beside
+        the bodies they describe.
+      </div>
+      <div id="anchorRows"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="saveAnchors">Save anchors</button>
+        <button id="resetAnchors">Reset</button>
+        <span id="anchorMsg" class="note"></span>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>Keys</legend>
       <div class="note keyhelp">
         <kbd>1</kbd>–<kbd>5</kbd><span>pick a shade</span>
@@ -148,6 +169,7 @@
           <div class="row">
             <label class="row"><input type="checkbox" id="grid" checked /> grid</label>
             <label class="row"><input type="checkbox" id="anchors" checked /> anchors</label>
+            <label class="row" id="mirrorWrap"><input type="checkbox" id="mirror" /> mirror</label>
             <button id="undo" disabled>Undo</button>
             <button id="revert">Revert</button>
             <button class="primary" id="save" disabled>Save</button>
@@ -211,6 +233,12 @@ let meta = null;
 let nonce = Date.now();
 
 // ── editor state ────────────────────────────────────────────────────────────
+// What's being edited: a gear overlay painted in the five key grays, or a body
+// painted in legend ROLES (skin, garment light, outline …). Both are the same
+// index-per-cell grid; only the palette behind the indices differs, so every
+// tool — pencil, fill, rotate, the clipboard — works on either without knowing.
+let mode = 'gear';
+let palette = KEY_GRAYS.map((v) => `rgb(${v},${v},${v})`);
 let steps = new Int8Array(SIZE * SIZE).fill(CLEAR);  // the art being edited
 let saved = null;                                    // last-known-on-disk copy
 let shade = 4;
@@ -273,8 +301,7 @@ function repaint() {
   for (let p = 0; p < shown.length; p++) {
     const s = shown[p];
     if (s < 0) continue;
-    const v = KEY_GRAYS[s];
-    c.fillStyle = `rgb(${v},${v},${v})`;
+    c.fillStyle = palette[s] ?? palette[palette.length - 1];
     c.fillRect((p % SIZE) * z, Math.floor(p / SIZE) * z, z, z);
   }
 
@@ -311,12 +338,9 @@ function repaint() {
 const ANCHOR_RGB = '255,64,196';
 const HAND_RGB = '90,220,255';
 
-/** GRID rows are 2 canvas pixels tall (the body is a 32-grid at 2px cells). */
-function rowScale() { return SIZE / (meta?.grid ?? 32); }
-
+/** Anchors are sprite-pixel rows, the same units the canvas draws in. */
 function anchorRect(a, z) {
-  const k = rowScale();
-  return { y: a.from * k * z, h: (a.to - a.from + 1) * k * z };
+  return { y: a.from * z, h: (a.to - a.from + 1) * z };
 }
 
 function drawAnchorBands(c, z) {
@@ -330,10 +354,9 @@ function drawAnchorBands(c, z) {
   const a = meta.poseAnchors.find((a) => a.label === 'hands');
   if (!a) return;
   const { y, h } = anchorRect(a, z);
-  const k = rowScale();
   c.fillStyle = `rgba(${HAND_RGB},.20)`;
   for (const [x0, x1] of [hands.left, hands.right]) {
-    c.fillRect(x0 * k * z, y, (x1 - x0 + 1) * k * z, h);
+    c.fillRect(x0 * z, y, (x1 - x0 + 1) * z, h);
   }
 }
 
@@ -360,10 +383,9 @@ function drawAnchorLines(c, z) {
   const a = meta.poseAnchors.find((a) => a.label === 'hands');
   if (!hands || !a) return;
   const { y, h } = anchorRect(a, z);
-  const k = rowScale();
   c.strokeStyle = `rgba(${HAND_RGB},.85)`;
   for (const [x0, x1] of [hands.left, hands.right]) {
-    c.strokeRect(x0 * k * z + .5, y + .5, (x1 - x0 + 1) * k * z - 1, h - 1);
+    c.strokeRect(x0 * z + .5, y + .5, (x1 - x0 + 1) * z - 1, h - 1);
   }
 }
 
@@ -388,7 +410,12 @@ function cellAt(ev) {
   return x >= 0 && x < SIZE && y >= 0 && y < SIZE ? { x, y } : null;
 }
 
-function put(x, y, s) { steps[y * SIZE + x] = s; }
+function put(x, y, s) {
+  steps[y * SIZE + x] = s;
+  // Bodies are near-symmetric and drawing both halves by hand never matches;
+  // the mirror is about the sprite's own centre line, not the art's.
+  if ($('mirror').checked) steps[y * SIZE + (SIZE - 1 - x)] = s;
+}
 
 /** Bresenham between two cells: a fast drag must not leave gaps in the stroke. */
 function line(a, b, s) {
@@ -620,24 +647,27 @@ function selectTool(t) {
 
 function buildPalette() {
   const sw = $('swatches');
+  sw.innerHTML = '';
   const clear = document.createElement('div');
   clear.className = 'sw clear';
   clear.title = 'erase (0)';
   clear.dataset.step = CLEAR;
   clear.addEventListener('click', () => selectTool('eraser'));
   sw.appendChild(clear);
-  KEY_GRAYS.forEach((v, i) => {
+  const roles = mode === 'body' ? meta.bodyRoles : null;
+  palette.forEach((css, i) => {
     const el = document.createElement('div');
-    el.className = 'sw';
-    el.style.background = `rgb(${v},${v},${v})`;
+    el.className = 'sw' + (roles ? ' role' : '');
+    el.style.background = css;
     el.style.color = i > 2 ? '#555' : '#aaa';
-    el.textContent = i;
-    el.title = `step ${i} — gray ${v} (${i + 1})`;
+    el.textContent = roles ? roles[i].ch : i;
+    el.title = roles ? `${roles[i].label} (${roles[i].ch})` : `step ${i} — gray ${KEY_GRAYS[i]} (${i + 1})`;
     el.dataset.step = i;
     el.addEventListener('click', () => { selectTool('pencil'); selectShade(i); });
     sw.appendChild(el);
   });
 
+  $('tools').innerHTML = '';
   for (const [t, label] of [['pencil', 'Pencil'], ['eraser', 'Eraser'], ['fill', 'Fill'], ['picker', 'Pick']]) {
     const b = document.createElement('button');
     b.textContent = label;
@@ -646,7 +676,7 @@ function buildPalette() {
     $('tools').appendChild(b);
   }
   selectTool('pencil');
-  selectShade(4);
+  selectShade(Math.min(shade, palette.length - 1));
 }
 
 window.addEventListener('keydown', (ev) => {
@@ -671,7 +701,11 @@ window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && sel) { sel = null; setClipUI(); repaint(); return; }
   if ((ev.key === 'Backspace' || ev.key === 'Delete') && sel) { ev.preventDefault(); clearSelection(); return; }
   if (ev.key === '0') { selectTool('eraser'); return; }
-  if ('12345'.includes(ev.key)) { selectTool('pencil'); selectShade(Number(ev.key) - 1); return; }
+  if ('123456789'.includes(ev.key)) {
+    const i = Number(ev.key) - 1;
+    if (i < palette.length) { selectTool('pencil'); selectShade(i); }
+    return;
+  }
   if (ev.key === '[') { $('rotL').click(); return; }
   if (ev.key === ']') { $('rotR').click(); return; }
   const byKey = { b: 'pencil', e: 'eraser', g: 'fill', i: 'picker', m: 'select' };
@@ -758,25 +792,83 @@ function undo() {
 }
 
 // ── load / save ─────────────────────────────────────────────────────────────
+const isBody = (name) => name.startsWith('body:');
+const bodyName = (name) => name.slice('body:'.length);
+
+/** Body rows are legend characters; the canvas works in palette indices. */
+function bodyToSteps(body) {
+  const roles = meta.bodyRoles.map((r) => r.ch);
+  const out = new Int8Array(SIZE * SIZE).fill(CLEAR);
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const ch = body.rows[y][x];
+      if (ch === '.') continue;
+      const i = roles.indexOf(ch);
+      // An unknown legend char keeps its cell rather than punching a hole in
+      // the body: it paints as the last role until someone repaints it.
+      out[y * SIZE + x] = i < 0 ? roles.length - 1 : i;
+    }
+  }
+  return out;
+}
+
+function stepsToBody(src) {
+  const roles = meta.bodyRoles.map((r) => r.ch);
+  const rows = [];
+  for (let y = 0; y < SIZE; y++) {
+    let row = '';
+    for (let x = 0; x < SIZE; x++) {
+      const v = src[y * SIZE + x];
+      row += v < 0 ? '.' : roles[v];
+    }
+    rows.push(row);
+  }
+  return { rows };
+}
+
 async function loadLayer(name) {
   preview = null; pivotAt = null; paste = null; sel = null;
   $('angle').value = 0; $('anglev').textContent = '0°'; setRotUI(); setClipUI();
-  const data = await (await fetch(`/api/layer/${name}?t=${Date.now()}`)).json();
-  steps = Int8Array.from(data.steps);
-  saved = Int8Array.from(data.steps);
   undos.length = 0;
-  $('layerName').textContent = `${name}.png`;
-  $('saveMsg').innerHTML = data.exists ? '&nbsp;' : '<span class="note">new overlay — nothing on disk yet</span>';
+  mode = isBody(name) ? 'body' : 'gear';
+  palette = mode === 'body'
+    ? meta.bodyRoles.map((r) => r.hex)
+    : KEY_GRAYS.map((v) => `rgb(${v},${v},${v})`);
+  buildPalette();
+  $('mirrorWrap').style.display = mode === 'body' ? '' : 'none';
+  if (mode !== 'body') $('mirror').checked = false;
+
+  if (mode === 'body') {
+    const n = bodyName(name);
+    const data = await (await fetch(`/api/body/${n}?t=${Date.now()}`)).json();
+    steps = bodyToSteps(data.body);
+    saved = Int8Array.from(steps);
+    $('layerName').textContent = `body/${n}.json`;
+    $('saveMsg').innerHTML = data.exists ? '&nbsp;'
+      : `<span class="note">new body — seeded from ${n === meta.sharedBody ? 'the fighter template' : 'the body in force'}</span>`;
+  } else {
+    const data = await (await fetch(`/api/layer/${name}?t=${Date.now()}`)).json();
+    steps = Int8Array.from(data.steps);
+    saved = Int8Array.from(data.steps);
+    $('layerName').textContent = `${name}.png`;
+    $('saveMsg').innerHTML = data.exists ? '&nbsp;' : '<span class="note">new overlay — nothing on disk yet</span>';
+  }
   repaint();
 }
 
 async function save() {
   const name = $('layer').value;
-  const res = await fetch(`/api/layer/${name}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ steps: [...steps] }),
-  });
+  const res = isBody(name)
+    ? await fetch(`/api/body/${bodyName(name)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stepsToBody(steps)),
+    })
+    : await fetch(`/api/layer/${name}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ steps: [...steps] }),
+    });
   const body = await res.json();
   if (!res.ok) { $('saveMsg').innerHTML = `<span class="warn">${body.error}</span>`; return; }
   saved = Int8Array.from(steps);
@@ -815,10 +907,9 @@ async function refreshComposite() {
   const res = await fetch('/api/sprite.png', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      params: Object.fromEntries(params()),
-      draft: { layer: $('layer').value, steps: [...(preview ?? steps)] },
-    }),
+    body: JSON.stringify(mode === 'body'
+      ? { params: Object.fromEntries(params()), bodyDraft: stepsToBody(preview ?? steps) }
+      : { params: Object.fromEntries(params()), draft: { layer: $('layer').value, steps: [...(preview ?? steps)] } }),
   });
   if (!res.ok) { $('status').innerHTML = `<span class="warn">${(await res.json()).error}</span>`; return; }
   const missing = res.headers.get('X-Missing-Layers');
@@ -881,6 +972,7 @@ async function render() {
 /** Editing an overlay you can't see on the character is the one confusing state
  *  here, so picking a layer equips something that shows it. */
 function equipForLayer(name) {
+  if (name.startsWith('body:')) return;
   const [slot, weight] = name.split('_');
   if (slot === 'chest' || slot === 'helmet') {
     const sel = slot === 'chest' ? 'chestMat' : 'helmMat';
@@ -901,6 +993,50 @@ function fillMaterials() {
   if ([...$('mat').options].some((o) => o.value === keep)) $('mat').value = keep;
 }
 
+// ── pose anchors ─────────────────────────────────────────────────────────────
+function renderAnchorRows() {
+  const box = $('anchorRows');
+  box.innerHTML = '';
+  meta.poseAnchors.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'anchor';
+    const label = document.createElement('label');
+    label.textContent = a.label;
+    row.appendChild(label);
+    for (const field of ['from', 'to']) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = 0;
+      inp.max = SIZE - 1;
+      inp.value = a[field];
+      inp.title = `${a.label} ${field} row`;
+      inp.addEventListener('input', () => {
+        meta.poseAnchors[i][field] = Number(inp.value);
+        repaint();
+      });
+      row.appendChild(inp);
+    }
+    box.appendChild(row);
+  });
+}
+
+async function saveAnchors() {
+  const res = await fetch('/api/anchors', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(meta.poseAnchors),
+  });
+  const body = await res.json();
+  if (!res.ok) { $('anchorMsg').innerHTML = `<span class="warn">${body.error}</span>`; return; }
+  // Hand columns are read off the anchors, so the marker has to be re-derived
+  // from the server rather than left showing the old rows.
+  const fresh = await (await fetch('/api/meta')).json();
+  meta.handColumns = fresh.handColumns;
+  $('anchorMsg').innerHTML = '<span class="ok">saved</span>';
+  nonce = Date.now();
+  render();
+}
+
 async function init() {
   meta = await (await fetch('/api/meta')).json();
 
@@ -917,13 +1053,26 @@ async function init() {
   }
 
   const drawn = new Set(meta.drawn);
+  // Bodies first: they're the thing everything else is drawn against.
+  $('layer').appendChild(opt(`body:${meta.sharedBody}`,
+    `body — all classes${meta.bodies.fighter === 'shared' ? '' : ' (not in use)'}`));
+  for (const k of meta.classes) {
+    $('layer').appendChild(opt(`body:${k}`, `body — ${k}${meta.bodies[k] === 'class' ? '' : ' (empty)'}`));
+  }
   for (const n of layerNames()) $('layer').appendChild(opt(n, drawn.has(n) ? n : `${n} (empty)`));
   // Open on something that already has art, so the first thing you see is a
   // working composite rather than a bare body.
   const firstDrawn = layerNames().find((n) => drawn.has(n));
   if (firstDrawn) $('layer').value = firstDrawn;
+  $('mirrorWrap').style.display = 'none';
 
-  buildPalette();
+  renderAnchorRows();
+  $('saveAnchors').addEventListener('click', saveAnchors);
+  $('resetAnchors').addEventListener('click', async () => {
+    meta.poseAnchors = (await (await fetch('/api/meta')).json()).poseAnchors;
+    renderAnchorRows();
+    repaint();
+  });
 
   $('layer').addEventListener('change', async () => {
     if (dirty() && !confirm('Discard unsaved changes to this overlay?')) return;
