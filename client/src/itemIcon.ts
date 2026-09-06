@@ -1,7 +1,7 @@
 import { itemVisual } from '../../shared/itemVisuals.ts';
 import type { VisualSource } from '../../shared/itemVisuals.ts';
 import { SPRITE_SIZE, opaqueBounds, renderOverlay } from '../../shared/playerComposite.ts';
-import { gearLayerPixels, whenLayerLoads } from './playerSprite.ts';
+import { visualPixels, whenLayerLoads } from './playerSprite.ts';
 
 // Inventory / merchant / loot icons, built from the same grayscale overlay the
 // paper-doll wears — recolored through the item's material ramp and tinted by
@@ -17,7 +17,7 @@ whenLayerLoads(() => icons.clear());
 function build(stack: VisualSource): HTMLCanvasElement | null {
   const visual = itemVisual(stack);
   if (!visual) return null;
-  const pixels = gearLayerPixels(visual.layer);
+  const pixels = visualPixels(visual);
   if (!pixels) return null;
 
   const rgba = renderOverlay(pixels, visual);

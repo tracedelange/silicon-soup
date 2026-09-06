@@ -15,7 +15,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { ARMOR_SLOTS } from '../../shared/constants.ts';
-import { BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, rarityColor } from '../../shared/itemVisuals.ts';
+import { ARMOR_SHAPES, BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, rarityColor } from '../../shared/itemVisuals.ts';
 import {
   BODY_ROLES, SPRITE_SIZE, TEMPLATES, buildPalette, handColumns, renderComposite, templateBody,
 } from '../../shared/playerComposite.ts';
@@ -83,6 +83,7 @@ app.get('/api/meta', (_req, res) => {
       return { ...r, hex: `#${[red, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}` };
     }),
     armorSlots: ARMOR_SLOTS,
+    armorShapes: ARMOR_SHAPES,
     spriteSize: SPRITE_SIZE,
     drawn: drawnLayers(),
   });

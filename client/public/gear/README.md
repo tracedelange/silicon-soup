@@ -44,16 +44,26 @@ missing file simply doesn't draw.
 |---|---|---|
 | mainhand | `<archetype>.png` (`sword`, `maul`, `staff`, …) | the archetype id in `world/entities/items/archetypes.yaml` |
 | armor | `helmet.png` `chest.png` `gloves.png` `leggings.png` `boots.png` | the archetype id, which for armor is also the slot |
+| armor variant | `<slot>_cloth.png` | the material's `class` in `materials.yaml` |
 
-One silhouette per armor slot, not a shape per material: a Steel Chest and a
-Wool Chest are the same drawing through different ramps. Weight-class variants
-(a plate shape apart from a robe shape) are a later pass — they'd split the
-filename, and `itemVisual` in `shared/itemVisuals.ts` is where that happens.
+One silhouette per armor slot, and within a class the material is only a ramp:
+a Steel Chest and a Studded Chest are the same drawing. A **material class** can
+ask for a shape of its own, though — cloth does, because a robe is not a
+cuirass in a different color. A cloth piece looks for `<slot>_cloth.png` and
+falls back to `<slot>.png`, so a variant costs one drawing where it pays and
+nothing where it doesn't: `chest_cloth`, `helmet_cloth` and `gloves_cloth` are
+drawn, and cloth leggings and boots take the default shapes because a robe
+covers them anyway. Delete a variant and its slot silently reverts.
+
+Adding a class (a leather line, say) means a row in `MATERIAL_CLASS_SHAPES` in
+`shared/itemVisuals.ts` — the fallback itself needs no registry, but *which*
+class prefers *which* suffix does.
+
 Rings and amulets are deliberately not drawn — a handful of pixels at on-screen
 scale reads as noise, so they stay inventory-only.
 
-The armor five are a first pass: they read as a suit and they line up with the
-pose, but each is a plain silhouette with one specular hit. `sword.png` is a
+The armor is a first pass: it reads as a suit and lines up with the pose, but
+each piece is a plain silhouette with one specular hit. `sword.png` is a
 placeholder good enough to prove the pipeline; replace it.
 
 Pieces are drawn against each other, not just against the body: the chest's

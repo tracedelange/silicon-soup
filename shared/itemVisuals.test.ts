@@ -5,8 +5,8 @@ import yaml from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import { BRAND_KEYS } from './constants.ts';
 import {
-  BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, parseBaseId, rampFor,
-  unmappedBrands, visualSignature,
+  BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, itemVisual, layerCandidates,
+  parseBaseId, rampFor, unmappedBrands, visualSignature,
 } from './itemVisuals.ts';
 import type { Equipment, InventoryStack } from './types.ts';
 
@@ -113,17 +113,18 @@ describe('gearVisuals', () => {
   it('draws armor bottom-up and the weapon last, so it reads as held in front', () => {
     const v = gearVisuals(equip({
       mainhand: stack('steel_sword'), chest: stack('leather_chest'), helmet: stack('iron_helmet'),
-      boots: stack('leather_boots'), leggings: stack('wool_leggings'), gloves: stack('iron_gloves'),
+      boots: stack('leather_boots'), leggings: stack('studded_leggings'), gloves: stack('iron_gloves'),
     }));
     expect(v.map((g) => g.layer)).toEqual(['boots', 'leggings', 'chest', 'gloves', 'helmet', 'sword']);
   });
 
-  // One silhouette per slot: the material shows up as ramp, never as shape.
+  // One silhouette per slot: within a material class the material shows up as
+  // ramp, never as shape.
   it('gives two materials in the same slot the same layer and different ramps', () => {
-    const [heavy] = gearVisuals(equip({ chest: stack('steel_chest') }));
-    const [light] = gearVisuals(equip({ chest: stack('wool_chest') }));
-    expect(heavy!.layer).toBe(light!.layer);
-    expect(heavy!.ramp).not.toEqual(light!.ramp);
+    const [steel] = gearVisuals(equip({ chest: stack('steel_chest') }));
+    const [studded] = gearVisuals(equip({ chest: stack('studded_chest') }));
+    expect(steel!.layer).toBe(studded!.layer);
+    expect(steel!.ramp).not.toEqual(studded!.ramp);
   });
 
   it('skips empty slots and unparseable bases instead of emitting a broken layer', () => {
@@ -161,6 +162,38 @@ describe('gearVisuals', () => {
   });
 });
 
+// CLOTH_MATERIALS restates the registry's `class` column, so the registry is
+// what grades it: a new cloth material has to ask for the robe on its own.
+describe('material class silhouettes', () => {
+  const layerFor = (base: string) => itemVisual({ base })!;
+
+  it('sends every cloth material to the cloth shape, and nothing else', () => {
+    for (const m of materials) {
+      if (!MATERIAL_VISUALS[m.id]) continue;
+      const v = layerFor(`${m.id}_chest`);
+      if (m.class === 'cloth') {
+        expect(layerCandidates(v), m.id).toEqual(['chest_cloth', 'chest']);
+      } else {
+        expect(layerCandidates(v), m.id).toEqual(['chest']);
+      }
+    }
+  });
+
+  it('varies armor by material class but never a weapon', () => {
+    for (const slot of ['helmet', 'chest', 'gloves', 'leggings', 'boots']) {
+      expect(layerCandidates(layerFor(`silk_${slot}`))).toEqual([`${slot}_cloth`, slot]);
+    }
+    // A staff is wood, not cloth, but the rule is about the archetype: shape
+    // variants are an armor idea, and a weapon has one drawing.
+    expect(layerCandidates(layerFor('worn_staff'))).toEqual(['staff']);
+  });
+
+  it('keeps the fallback out of the cache key only when there is none', () => {
+    expect(layerFor('steel_chest').fallback).toBeUndefined();
+    expect(layerFor('wool_chest').fallback).toBe('chest');
+  });
+});
+
 describe('visualSignature', () => {
   it('separates looks that differ only by material, rarity or brand', () => {
     const sig = (b: string, r?: string, br?: string) =>
@@ -170,6 +203,11 @@ describe('visualSignature', () => {
     expect(sig('steel_sword', 'legendary')).not.toBe(base);
     expect(sig('steel_sword', 'rare', 'fire_damage')).not.toBe(base);
     expect(sig('steel_sword', 'rare')).toBe(base);
+  });
+
+  it('separates a robe from a cuirass', () => {
+    const sig = (b: string) => visualSignature('wizard', '#6ec6f0', gearVisuals(equip({ chest: stack(b) })));
+    expect(sig('wool_chest')).not.toBe(sig('leather_chest'));
   });
 
   it('separates two players who differ only by color', () => {

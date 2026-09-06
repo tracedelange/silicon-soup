@@ -1,4 +1,4 @@
-import { gearVisuals, visualSignature } from '../../shared/itemVisuals.ts';
+import { gearVisuals, layerCandidates, visualSignature } from '../../shared/itemVisuals.ts';
 import type { GearVisual } from '../../shared/itemVisuals.ts';
 import { SPRITE_SIZE, renderComposite } from '../../shared/playerComposite.ts';
 import type { BodyArt, CompositeLayer } from '../../shared/playerComposite.ts';
@@ -67,6 +67,19 @@ function decode(img: HTMLImageElement): Uint8ClampedArray {
 const onLayerLoad: (() => void)[] = [];
 export function whenLayerLoads(fn: () => void): void { onLayerLoad.push(fn); }
 
+/** The art for a resolved item: its preferred silhouette, else the shape it
+ *  falls back to. The fallback is only *fetched* once the preferred layer has
+ *  come back 404 — while it's still in flight the item simply doesn't draw, so
+ *  a variant that does exist never flashes the default shape first. */
+export function visualPixels(visual: GearVisual): Uint8ClampedArray | null {
+  for (const name of layerCandidates(visual)) {
+    const pixels = gearLayerPixels(name);
+    if (pixels) return pixels;
+    if (layers.get(name) !== 'missing') return null;
+  }
+  return null;
+}
+
 /** Shared with itemIcon.ts: one fetch and one decode per overlay, whether it's
  *  wanted for a body composite or a bag icon. */
 export function gearLayerPixels(name: string): Uint8ClampedArray | null {
@@ -90,7 +103,7 @@ export function gearLayerPixels(name: string): Uint8ClampedArray | null {
 function compose(klass: ClassId, color: string, visuals: GearVisual[]): HTMLCanvasElement {
   const ready: CompositeLayer[] = [];
   for (const visual of visuals) {
-    const pixels = gearLayerPixels(visual.layer);
+    const pixels = visualPixels(visual);
     if (pixels) ready.push({ pixels, visual });
   }
   const rgba = renderComposite({ klass, color, body: resolveBody(klass) }, ready);

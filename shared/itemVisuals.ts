@@ -94,6 +94,9 @@ export function rampFor(material: string | undefined): Ramp {
  *  grayscale PNG in client/public/gear/. */
 export interface GearVisual {
   layer: string;
+  /** The shape to draw when `layer` has no art — how a material class opts
+   *  into a silhouette of its own without every class owing one. */
+  fallback?: string;
   ramp: Ramp;
   /** Rarity outline color; absent for common (common gets no glow). */
   glow?: string;
@@ -107,10 +110,28 @@ export interface GearVisual {
  *  gloves over the sleeve, and the weapon last so it reads as held in front. */
 const OVERLAY_SLOTS = ['boots', 'leggings', 'chest', 'gloves', 'helmet', 'mainhand'] as const;
 
-/** Archetypes worn rather than swung. One silhouette per slot, not a shape per
- *  material: a Steel Chest and a Wool Chest differ by ramp alone. Weight-class
- *  variants are a later pass — when they land, this is where the shape splits.*/
+/** Archetypes worn rather than swung. Their default silhouette is one shape per
+ *  slot — a Steel Chest and a Studded Chest differ by ramp alone. */
 const ARMOR_ARCHETYPES = new Set(['helmet', 'chest', 'gloves', 'leggings', 'boots']);
+
+/** Material class -> the silhouette suffix armor of that class prefers, e.g. a
+ *  cloth chest asks for `chest_cloth` (a robe) before the default `chest`.
+ *  Deliberately not a list of which variants exist: a slot opts in by someone
+ *  drawing the file, and falls back the moment it's deleted — the same "the
+ *  filename is the whole registration" rule the rest of the folder runs on. */
+const MATERIAL_CLASS_SHAPES: Record<string, string> = {
+  cloth: 'cloth',
+};
+
+/** The shape suffixes armor can carry, for tools that offer every drawable
+ *  overlay (the sprite-lab's layer picker) rather than resolving one item. */
+export const ARMOR_SHAPES: readonly string[] = Object.values(MATERIAL_CLASS_SHAPES);
+
+/** Which of a material's names carries its class. MATERIAL_VISUALS is keyed by
+ *  material id and doesn't restate the registry's `class` column, so the ramp
+ *  table is where a class lookup would have to live if a second class ever
+ *  wants a shape; until then the cloth ids are the whole set. */
+const CLOTH_MATERIALS = new Set(['tattered', 'wool', 'silk']);
 
 /** The least an item has to be for art to be resolved from it. Satisfied by an
  *  InventoryStack, a LootSlot, and a merchant's plain `{ base }` stock line —
@@ -142,10 +163,12 @@ export function itemVisual(stack: VisualSource | null | undefined): GearVisual |
   const brand = eq?.rolled?.weapon_brand as string | undefined;
   const armor = ARMOR_ARCHETYPES.has(parsed.archetype);
 
+  const shape = armor && CLOTH_MATERIALS.has(parsed.material) ? MATERIAL_CLASS_SHAPES['cloth'] : undefined;
   const v: GearVisual = {
-    layer: parsed.archetype,
+    layer: shape ? `${parsed.archetype}_${shape}` : parsed.archetype,
     ramp: rampFor(parsed.material),
   };
+  if (shape) v.fallback = parsed.archetype;
   if (rarity && rarity !== 'common') v.glow = rarityColor(rarity);
   // A brand only reads on the thing that swings; branded armor doesn't exist.
   if (!armor && brand && BRAND_COLORS[brand]) v.tint = BRAND_COLORS[brand];
@@ -163,6 +186,13 @@ export function gearVisuals(equipment: Equipment | undefined): GearVisual[] {
     if (v) out.push(v);
   }
   return out;
+}
+
+/** The overlay basenames to try for one resolved item, most specific first.
+ *  Everything that turns a GearVisual into pixels walks this, so the client,
+ *  the icon cache and the workbench all fall back identically. */
+export function layerCandidates(v: GearVisual): string[] {
+  return v.fallback ? [v.layer, v.fallback] : [v.layer];
 }
 
 /** Stable identity for a resolved look — the cache key for a composited

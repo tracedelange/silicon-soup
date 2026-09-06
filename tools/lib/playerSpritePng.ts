@@ -8,6 +8,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
+import { layerCandidates } from '../../shared/itemVisuals.ts';
 import type { GearVisual } from '../../shared/itemVisuals.ts';
 import { KEY_GRAYS, SPRITE_SIZE, rampStep } from '../../shared/playerComposite.ts';
 import { renderComposite } from '../../shared/playerComposite.ts';
@@ -108,7 +109,11 @@ export function playerSpritePng(
   const layers: CompositeLayer[] = [];
   const missing: string[] = [];
   for (const visual of visuals) {
-    const pixels = drafts?.[visual.layer] ?? loadGearLayer(visual.layer, dir);
+    let pixels: Uint8ClampedArray | null = null;
+    for (const name of layerCandidates(visual)) {
+      pixels = drafts?.[name] ?? loadGearLayer(name, dir);
+      if (pixels) break;
+    }
     if (pixels) layers.push({ pixels, visual });
     else missing.push(visual.layer);
   }

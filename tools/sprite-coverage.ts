@@ -13,7 +13,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import yaml from 'js-yaml';
 import { composeBases } from '../server/game/items/bases.ts';
-import { itemVisual, parseBaseId } from '../shared/itemVisuals.ts';
+import { itemVisual, layerCandidates, parseBaseId } from '../shared/itemVisuals.ts';
 import type { Archetype, ItemBase, Material } from '../shared/types.ts';
 import { GEAR_DIR } from './lib/playerSpritePng.ts';
 
@@ -47,17 +47,26 @@ const authored = readdirSync(join(ITEMS, 'bases'))
 
 interface Row { id: string; name: string; slot: string; layer: string | null; authored: boolean }
 
+const hasArt = (layer: string) => existsSync(join(GEAR_DIR, `${layer}.png`));
+
+/** The overlay an item will actually draw with — its preferred silhouette when
+ *  that's been drawn, else the shape it falls back to. Reporting the preferred
+ *  name regardless would file every cloth piece under an undrawn `_cloth`
+ *  variant and call the armor uncovered when it renders fine. */
+function drawnLayer(base: string): string | null {
+  const v = itemVisual({ base });
+  return v ? layerCandidates(v).find(hasArt) ?? v.layer : null;
+}
+
 const rows: Row[] = [...composed, ...authored]
   .filter((b) => b.slot && EQUIPPABLE.has(b.slot))
   .map((b) => ({
     id: b.id,
     name: b.name ?? b.id,
     slot: b.slot!,
-    layer: itemVisual({ base: b.id })?.layer ?? null,
+    layer: drawnLayer(b.id),
     authored: !composed.some((c) => c.id === b.id),
   }));
-
-const hasArt = (layer: string) => existsSync(join(GEAR_DIR, `${layer}.png`));
 
 // A hand-authored base whose id collides with one the cross-product already
 // composes. Not a sprite problem, but this report is where it shows up: the

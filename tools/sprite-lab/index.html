@@ -270,11 +270,13 @@ function materialsFor(archId) {
   return arch ? meta.materials.filter((m) => arch.material_classes.includes(m.class)) : [];
 }
 
-/** The overlays worth offering: every mainhand archetype, plus one silhouette
- *  per armor slot. Matches the naming contract in gear/README.md. */
+/** The overlays worth offering: every mainhand archetype, one silhouette per
+ *  armor slot, and each slot's material-class variants (`chest_cloth` — a robe
+ *  where the default is a cuirass). Matches the contract in gear/README.md. */
 function layerNames() {
   const weapons = meta.archetypes.filter((a) => a.slot === 'mainhand').map((a) => a.id);
-  return [...weapons, ...meta.armorSlots];
+  const armor = meta.armorSlots.flatMap((s) => [s, ...meta.armorShapes.map((v) => `${s}_${v}`)]);
+  return [...weapons, ...armor];
 }
 
 /** The select that equips a given armor slot in the preview. */
@@ -980,9 +982,14 @@ async function render() {
  *  here, so picking a layer equips something that shows it. */
 function equipForLayer(name) {
   if (name.startsWith('body:')) return;
-  if (meta.armorSlots.includes(name)) {
-    const sel = $(armorSel(name));
-    if (!sel.value) sel.value = materialsFor(name)[0]?.id ?? '';
+  // `chest_cloth` has to equip a cloth chest to show up at all, so a variant
+  // picks its own material class rather than whatever was already equipped.
+  const shape = meta.armorShapes.find((v) => name.endsWith(`_${v}`));
+  const slot = shape ? name.slice(0, -shape.length - 1) : name;
+  if (meta.armorSlots.includes(slot)) {
+    const sel = $(armorSel(slot));
+    const want = materialsFor(slot).filter((m) => !shape || m.class === shape);
+    if (shape || !sel.value) sel.value = want[0]?.id ?? '';
     return;
   }
   if ([...$('arch').options].some((o) => o.value === name)) {
