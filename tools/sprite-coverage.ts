@@ -25,9 +25,9 @@ const ITEMS = join(ROOT, 'world/entities/items');
  *  gear overlay to miss. */
 const EQUIPPABLE = new Set(['mainhand', 'helmet', 'chest', 'gloves', 'leggings', 'boots', 'ring', 'amulet']);
 
-/** Slots the paper-doll composites. The rest can still carry an inventory icon;
- *  they're just too small to read on a 64px body (docs/plan-player-sprites.md). */
-const WORN_SLOTS = new Set(['mainhand', 'chest', 'helmet']);
+/** Slots the paper-doll composites. Rings and amulets can still carry an
+ *  inventory icon; they're just too small to read on a 64px body. */
+const WORN_SLOTS = new Set(['mainhand', 'helmet', 'chest', 'gloves', 'leggings', 'boots']);
 
 function readList<T>(file: string, key: string): T[] {
   return (yaml.load(readFileSync(join(ITEMS, file), 'utf8')) as Record<string, T[]>)[key] ?? [];

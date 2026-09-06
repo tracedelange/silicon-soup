@@ -87,8 +87,6 @@
   <div class="ctl"><label>Material</label><select id="mat"></select></div>
   <div class="ctl"><label>Rarity</label><select id="rarity"></select></div>
   <div class="ctl"><label>Brand</label><select id="brand"></select></div>
-  <div class="ctl"><label>Chest</label><select id="chestMat"></select></div>
-  <div class="ctl"><label>Helmet</label><select id="helmMat"></select></div>
   <div class="ctl"><label>Zoom <span id="zoomv">8</span>x</label><input type="range" id="zoom" min="2" max="14" value="8" /></div>
 </div>
 
@@ -272,12 +270,15 @@ function materialsFor(archId) {
   return arch ? meta.materials.filter((m) => arch.material_classes.includes(m.class)) : [];
 }
 
-/** The overlays worth offering: every mainhand archetype, plus the two armor
- *  silhouettes per drawn slot. Matches the naming contract in gear/README.md. */
+/** The overlays worth offering: every mainhand archetype, plus one silhouette
+ *  per armor slot. Matches the naming contract in gear/README.md. */
 function layerNames() {
   const weapons = meta.archetypes.filter((a) => a.slot === 'mainhand').map((a) => a.id);
-  return [...weapons, 'chest_light', 'chest_heavy', 'helmet_light', 'helmet_heavy'];
+  return [...weapons, ...meta.armorSlots];
 }
+
+/** The select that equips a given armor slot in the preview. */
+const armorSel = (slot) => `mat_${slot}`;
 
 // ── canvas ──────────────────────────────────────────────────────────────────
 function editZoom() { return Number($('zoom').value); }
@@ -899,8 +900,10 @@ function params(extra = {}) {
   put('mainhand', $('mat').value && `${$('mat').value}_${$('arch').value}`);
   put('rarity', $('rarity').value);
   put('brand', $('brand').value);
-  put('chest', $('chestMat').value && `${$('chestMat').value}_chest`);
-  put('helmet', $('helmMat').value && `${$('helmMat').value}_helmet`);
+  for (const slot of meta.armorSlots) {
+    const m = $(armorSel(slot)).value;
+    put(slot, m && `${m}_${slot}`);
+  }
   for (const [k, v] of Object.entries(extra)) v === null ? p.delete(k) : p.set(k, v);
   return p;
 }
@@ -977,11 +980,9 @@ async function render() {
  *  here, so picking a layer equips something that shows it. */
 function equipForLayer(name) {
   if (name.startsWith('body:')) return;
-  const [slot, weight] = name.split('_');
-  if (slot === 'chest' || slot === 'helmet') {
-    const sel = slot === 'chest' ? 'chestMat' : 'helmMat';
-    const m = meta.materials.find((m) => m.armor_tag === weight);
-    if (m) $(sel).value = m.id;
+  if (meta.armorSlots.includes(name)) {
+    const sel = $(armorSel(name));
+    if (!sel.value) sel.value = materialsFor(name)[0]?.id ?? '';
     return;
   }
   if ([...$('arch').options].some((o) => o.value === name)) {
@@ -1051,9 +1052,18 @@ async function init() {
   for (const b of meta.brands) $('brand').appendChild(opt(b.id, b.id.replace('_damage', '')));
   fillMaterials();
 
-  for (const [sel, slot] of [['chestMat', 'chest'], ['helmMat', 'helmet']]) {
-    $(sel).appendChild(opt('', '(none)'));
-    for (const m of materialsFor(slot)) $(sel).appendChild(opt(m.id, m.name));
+  // One material select per armor slot, ahead of the zoom control the panel ends on.
+  const zoomCtl = $('zoom').closest('.ctl');
+  for (const slot of meta.armorSlots) {
+    const arch = meta.archetypes.find((a) => a.id === slot);
+    const wrap = document.createElement('div');
+    wrap.className = 'ctl';
+    wrap.innerHTML = `<label>${arch ? arch.name : slot}</label><select id="${armorSel(slot)}"></select>`;
+    zoomCtl.parentElement.insertBefore(wrap, zoomCtl);
+    const sel = wrap.querySelector('select');
+    sel.appendChild(opt('', '(none)'));
+    for (const m of materialsFor(slot)) sel.appendChild(opt(m.id, m.name));
+    sel.addEventListener('input', () => { repaint(); render(); });
   }
 
   const drawn = new Set(meta.drawn);
@@ -1085,7 +1095,7 @@ async function init() {
     render();
   });
   $('arch').addEventListener('change', () => { fillMaterials(); render(); });
-  for (const id of ['klass', 'color', 'mat', 'rarity', 'brand', 'chestMat', 'helmMat', 'zoom', 'guides', 'grid', 'anchors']) {
+  for (const id of ['klass', 'color', 'mat', 'rarity', 'brand', 'zoom', 'guides', 'grid', 'anchors']) {
     $(id).addEventListener('input', () => { repaint(); render(); });
   }
   $('reload').addEventListener('click', async () => {

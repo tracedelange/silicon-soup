@@ -43,12 +43,22 @@ missing file simply doesn't draw.
 | Slot | Filename | Comes from |
 |---|---|---|
 | mainhand | `<archetype>.png` (`sword`, `maul`, `staff`, …) | the archetype id in `world/entities/items/archetypes.yaml` |
-| chest | `chest_light.png` / `chest_heavy.png` | the material's `armor_tag` |
-| helmet | `helmet_light.png` / `helmet_heavy.png` | the material's `armor_tag` |
+| armor | `helmet.png` `chest.png` `gloves.png` `leggings.png` `boots.png` | the archetype id, which for armor is also the slot |
 
-Armor is a silhouette per weight class, not a shape per archetype: a Steel Chest
-and a Wool Chest differ by ramp and weight, nothing else. Gloves, boots,
-leggings, rings and amulets are deliberately not drawn — a handful of pixels at
-on-screen scale reads as noise, so they stay inventory-only.
+One silhouette per armor slot, not a shape per material: a Steel Chest and a
+Wool Chest are the same drawing through different ramps. Weight-class variants
+(a plate shape apart from a robe shape) are a later pass — they'd split the
+filename, and `itemVisual` in `shared/itemVisuals.ts` is where that happens.
+Rings and amulets are deliberately not drawn — a handful of pixels at on-screen
+scale reads as noise, so they stay inventory-only.
 
-`sword.png` is a placeholder good enough to prove the pipeline; replace it.
+The armor five are a first pass: they read as a suit and they line up with the
+pose, but each is a plain silhouette with one specular hit. `sword.png` is a
+placeholder good enough to prove the pipeline; replace it.
+
+Pieces are drawn against each other, not just against the body: the chest's
+sleeve ends where the gauntlet cuff starts (row 34), the leggings' hem (row 54)
+laps over the top of the boot shaft (row 53), and the chest stops at row 42 so
+the leggings' belt shows under it. Redrawing one piece past those seams leaves
+a gap or an overlap on the assembled character, so check a full set in the
+workbench, not only the piece you touched.

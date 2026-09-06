@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { ARMOR_SLOTS } from '../../shared/constants.ts';
 import { BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, rarityColor } from '../../shared/itemVisuals.ts';
 import {
   BODY_ROLES, SPRITE_SIZE, TEMPLATES, buildPalette, handColumns, renderComposite, templateBody,
@@ -81,6 +82,7 @@ app.get('/api/meta', (_req, res) => {
       const [red, g, b] = bodyPalette[r.ch] ?? [128, 128, 128];
       return { ...r, hex: `#${[red, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}` };
     }),
+    armorSlots: ARMOR_SLOTS,
     spriteSize: SPRITE_SIZE,
     drawn: drawnLayers(),
   });
@@ -102,8 +104,7 @@ function equipmentFromQuery(q: Record<string, unknown>): Equipment {
     } as InventoryStack;
   };
   put('mainhand', q.mainhand, q.rarity, q.brand);
-  put('chest', q.chest, q.armorRarity, null);
-  put('helmet', q.helmet, q.armorRarity, null);
+  for (const slot of ARMOR_SLOTS) put(slot, q[slot], q.armorRarity, null);
   return eq as Equipment;
 }
 

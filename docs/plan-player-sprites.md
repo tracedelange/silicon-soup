@@ -28,7 +28,7 @@ A layered composite rendered once to an offscreen 64×64 canvas and cached,
 keyed by the player's "visual signature." Layers bottom-to-top:
 
 1. **Base body** (baked, per class ×3) — grayscale/keyed-palette template
-2. **Armor overlays** (baked, small set) — chest silhouette by weight class, helmet
+2. **Armor overlays** (baked, one per armor slot) — helmet, chest, gloves, leggings, boots
 3. **Weapon overlay** (baked, per archetype ~6-8) — grayscale, tinted by material
 4. **Rarity/brand accents** (procedural) — outline glow, elemental tint
 5. **Status FX** (procedural, animated, drawn live each frame — NOT cached)
@@ -58,13 +58,13 @@ pixel-art characters, not squares.
 
 ## Phase 2 — Equipment layers (~1-2 sessions)
 
-**Status (Sept 2026): the machinery is built and one weapon overlay ships.**
+**Status (Sept 2026): the machinery is built and the armor set ships.**
 The compositor moved out of the client into `shared/playerComposite.ts` (pure,
 runs in the browser and in Node), gear resolution into `shared/itemVisuals.ts`,
 and the whole chain is previewable *and editable* via `npm run sprite-lab`
 (:3005) — it carries a pixel editor that composites each stroke onto the
 character live, so overlays can be drawn without leaving the tool. What
-remains is *art* — 6 more weapon overlays, 2 chests, 2 helms — not code. Each is
+remains is *art* — the rest of the weapon overlays — not code. Each is
 a 64×64 grayscale PNG dropped into `client/public/gear/`; the filename is the
 registration, and a missing file simply doesn't draw. See that folder's
 README.md for the authoring contract.
@@ -74,9 +74,10 @@ README.md for the authoring contract.
   positioned at the canonical hand anchor. Tint by a material→color-ramp table
   (crude=dull brown, iron=gray, steel=bright silver, tempered=blue-steel,
   runed=violet). Material is parseable from the base id.
-- **Armor:** 2 chest overlays (light/heavy silhouette from material
-  `armor_tag`) + 1-2 helmet overlays, same tinting. Skip gloves/boots/leggings/
-  rings/amulets — too small at on-screen scale.
+- **Armor:** one overlay per armor slot — `helmet`, `chest`, `gloves`,
+  `leggings`, `boots` — same tinting; material shows up as ramp, rarity as glow.
+  Weight-class variants (a light vs. heavy silhouette per slot) are a later
+  pass. Rings and amulets stay inventory-only: too small at on-screen scale.
 - **Rarity:** procedural 1px outline glow matching existing inventory rarity
   colors. Common gets nothing.
 - **Brand:** if `rolled.weapon_brand` is set, tint the weapon layer edge with
@@ -105,8 +106,7 @@ glow, and tint. (True today for `sword` — the one archetype with art.)
   own color.
 - **`MATERIAL_VISUALS` restates the material registry**, so the registry grades
   it: `shared/itemVisuals.test.ts` fails when a material in `materials.yaml`
-  has no ramp, when a ramp names a material that no longer exists, or when a
-  ramp's weight disagrees with the YAML's `armor_tag`.
+  has no ramp, and when a ramp names a material that no longer exists.
 
 ## Phase 3 — Status effect FX (~1 session)
 

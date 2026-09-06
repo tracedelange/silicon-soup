@@ -6,13 +6,13 @@ import { describe, expect, it } from 'vitest';
 import { BRAND_KEYS } from './constants.ts';
 import {
   BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, parseBaseId, rampFor,
-  unmappedBrands, visualSignature, weightFor,
+  unmappedBrands, visualSignature,
 } from './itemVisuals.ts';
 import type { Equipment, InventoryStack } from './types.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-interface MaterialRow { id: string; class: string; armor_tag?: string }
+interface MaterialRow { id: string; class: string }
 const materials = (yaml.load(
   readFileSync(join(ROOT, 'world/entities/items/materials.yaml'), 'utf8'),
 ) as { materials: MaterialRow[] }).materials;
@@ -35,13 +35,6 @@ describe('material visual coverage', () => {
   it('has no ramps for materials that no longer exist', () => {
     const known = new Set(materials.map((m) => m.id));
     expect(Object.keys(MATERIAL_VISUALS).filter((id) => !known.has(id))).toEqual([]);
-  });
-
-  it('agrees with each material armor_tag on silhouette weight', () => {
-    for (const m of materials) {
-      if (!m.armor_tag) continue;
-      expect(weightFor(m.id), m.id).toBe(m.armor_tag);
-    }
   });
 
   it('ramps are five hex stops that get lighter', () => {
@@ -120,8 +113,17 @@ describe('gearVisuals', () => {
   it('draws armor bottom-up and the weapon last, so it reads as held in front', () => {
     const v = gearVisuals(equip({
       mainhand: stack('steel_sword'), chest: stack('leather_chest'), helmet: stack('iron_helmet'),
+      boots: stack('leather_boots'), leggings: stack('wool_leggings'), gloves: stack('iron_gloves'),
     }));
-    expect(v.map((g) => g.layer)).toEqual(['chest_light', 'helmet_heavy', 'sword']);
+    expect(v.map((g) => g.layer)).toEqual(['boots', 'leggings', 'chest', 'gloves', 'helmet', 'sword']);
+  });
+
+  // One silhouette per slot: the material shows up as ramp, never as shape.
+  it('gives two materials in the same slot the same layer and different ramps', () => {
+    const [heavy] = gearVisuals(equip({ chest: stack('steel_chest') }));
+    const [light] = gearVisuals(equip({ chest: stack('wool_chest') }));
+    expect(heavy!.layer).toBe(light!.layer);
+    expect(heavy!.ramp).not.toEqual(light!.ramp);
   });
 
   it('skips empty slots and unparseable bases instead of emitting a broken layer', () => {
@@ -140,8 +142,7 @@ describe('gearVisuals', () => {
   });
 
   it('ignores the slots that are too small to read on screen', () => {
-    const v = gearVisuals(equip({ boots: stack('leather_boots'), ring1: stack('gold_ring') }));
-    expect(v).toEqual([]);
+    expect(gearVisuals(equip({ ring1: stack('gold_ring'), amulet: stack('silver_amulet') }))).toEqual([]);
   });
 
   it('gives common no glow and every other rarity one', () => {

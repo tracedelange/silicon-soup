@@ -16,33 +16,26 @@ import type { Equipment, ItemEntity } from './types.ts';
  *  five key grays (0/64/128/192/255); each maps to the stop at its index. */
 export type Ramp = readonly [string, string, string, string, string];
 
-/** Armor silhouette class — picks between the light/heavy overlay shapes.
- *  Mirrors `armor_tag` in world/entities/items/materials.yaml; the coverage
- *  test in itemVisuals.test.ts is what keeps the two from drifting. */
-export type ArmorWeight = 'light' | 'heavy';
-
 interface MaterialVisual {
   ramp: Ramp;
-  /** Absent for materials that compose no armor (wood, precious). */
-  weight?: ArmorWeight;
 }
 
 export const MATERIAL_VISUALS: Record<string, MaterialVisual> = {
   // ── metal: cold grays climbing to blue-steel, then runed violet ──
-  crude:    { weight: 'heavy', ramp: ['#24201c', '#3b342c', '#574c40', '#756758', '#948573'] },
-  iron:     { weight: 'heavy', ramp: ['#1c1f22', '#333940', '#4e5761', '#6f7a86', '#97a2ad'] },
-  steel:    { weight: 'heavy', ramp: ['#22262b', '#414a55', '#66727f', '#93a0ad', '#c8d3dd'] },
-  tempered: { weight: 'heavy', ramp: ['#171d2b', '#2a3752', '#465a80', '#6b83ad', '#9fb5d8'] },
-  runed:    { weight: 'heavy', ramp: ['#21172e', '#3b2750', '#5c3f7d', '#8461ab', '#b592d4'] },
+  crude:    { ramp: ['#24201c', '#3b342c', '#574c40', '#756758', '#948573'] },
+  iron:     { ramp: ['#1c1f22', '#333940', '#4e5761', '#6f7a86', '#97a2ad'] },
+  steel:    { ramp: ['#22262b', '#414a55', '#66727f', '#93a0ad', '#c8d3dd'] },
+  tempered: { ramp: ['#171d2b', '#2a3752', '#465a80', '#6b83ad', '#9fb5d8'] },
+  runed:    { ramp: ['#21172e', '#3b2750', '#5c3f7d', '#8461ab', '#b592d4'] },
   // ── leather: warm browns ──
-  ragged:   { weight: 'light', ramp: ['#241a12', '#3a2a1c', '#513c29', '#6b5238', '#8a6d4d'] },
-  leather:  { weight: 'light', ramp: ['#2a1c10', '#46301b', '#644729', '#85623c', '#a67f55'] },
-  studded:  { weight: 'light', ramp: ['#241a14', '#3d2c20', '#5a4331', '#7b5f47', '#9c8062'] },
-  hardened: { weight: 'light', ramp: ['#1e1710', '#362819', '#523e26', '#715837', '#94784f'] },
+  ragged:   { ramp: ['#241a12', '#3a2a1c', '#513c29', '#6b5238', '#8a6d4d'] },
+  leather:  { ramp: ['#2a1c10', '#46301b', '#644729', '#85623c', '#a67f55'] },
+  studded:  { ramp: ['#241a14', '#3d2c20', '#5a4331', '#7b5f47', '#9c8062'] },
+  hardened: { ramp: ['#1e1710', '#362819', '#523e26', '#715837', '#94784f'] },
   // ── cloth: desaturated, silk picks up a violet sheen ──
-  tattered: { weight: 'light', ramp: ['#262320', '#3d3934', '#565049', '#706960', '#8b8378'] },
-  wool:     { weight: 'light', ramp: ['#2b2622', '#46403a', '#635b52', '#82796e', '#a2988c'] },
-  silk:     { weight: 'light', ramp: ['#2a2434', '#473c56', '#68597b', '#8d7ba3', '#b6a4cb'] },
+  tattered: { ramp: ['#262320', '#3d3934', '#565049', '#706960', '#8b8378'] },
+  wool:     { ramp: ['#2b2622', '#46403a', '#635b52', '#82796e', '#a2988c'] },
+  silk:     { ramp: ['#2a2434', '#473c56', '#68597b', '#8d7ba3', '#b6a4cb'] },
   // ── wood: staves and hafts ──
   worn:     { ramp: ['#241c14', '#3a2e21', '#52412f', '#6d573f', '#8b7253'] },
   oak:      { ramp: ['#2a2015', '#453522', '#634d33', '#836a48', '#a68a63'] },
@@ -97,10 +90,6 @@ export function rampFor(material: string | undefined): Ramp {
   return (material && MATERIAL_VISUALS[material]?.ramp) || FALLBACK_RAMP;
 }
 
-export function weightFor(material: string | undefined): ArmorWeight {
-  return (material && MATERIAL_VISUALS[material]?.weight) || 'light';
-}
-
 /** One overlay to composite over the body. `layer` is the basename of the
  *  grayscale PNG in client/public/gear/. */
 export interface GearVisual {
@@ -112,14 +101,15 @@ export interface GearVisual {
   tint?: string;
 }
 
-/** Only these slots get a world overlay. Gloves, boots, leggings, rings and
- *  amulets are a handful of pixels at on-screen scale — they read as noise, so
- *  they stay inventory-only. Order is bottom-to-top draw order. */
-const OVERLAY_SLOTS = ['chest', 'helmet', 'mainhand'] as const;
+/** Slots that get a world overlay — every armor slot plus the weapon; rings and
+ *  amulets are a couple of pixels at on-screen scale and stay inventory-only.
+ *  Order is bottom-to-top draw order: legwear under the chest it tucks into,
+ *  gloves over the sleeve, and the weapon last so it reads as held in front. */
+const OVERLAY_SLOTS = ['boots', 'leggings', 'chest', 'gloves', 'helmet', 'mainhand'] as const;
 
-/** Archetypes worn rather than swung. Their overlays are silhouettes per weight
- *  class, not shapes per archetype: a Steel Chest and a Wool Chest differ by
- *  ramp and weight, nothing else. */
+/** Archetypes worn rather than swung. One silhouette per slot, not a shape per
+ *  material: a Steel Chest and a Wool Chest differ by ramp alone. Weight-class
+ *  variants are a later pass — when they land, this is where the shape splits.*/
 const ARMOR_ARCHETYPES = new Set(['helmet', 'chest', 'gloves', 'leggings', 'boots']);
 
 /** The least an item has to be for art to be resolved from it. Satisfied by an
@@ -153,7 +143,7 @@ export function itemVisual(stack: VisualSource | null | undefined): GearVisual |
   const armor = ARMOR_ARCHETYPES.has(parsed.archetype);
 
   const v: GearVisual = {
-    layer: armor ? `${parsed.archetype}_${weightFor(parsed.material)}` : parsed.archetype,
+    layer: parsed.archetype,
     ramp: rampFor(parsed.material),
   };
   if (rarity && rarity !== 'common') v.glow = rarityColor(rarity);
