@@ -3,11 +3,12 @@
 //
 //   npx tsx tools/tile-blend-compare.ts [--seed=silicon-soup] [--at=0,0]
 //   npx tsx tools/tile-blend-compare.ts --zone=zone_0_0 --at=40,40
-//     [--tiles=24] [--scale=2] [--modes=dither,corner] [--out=path.png]
+//     [--tiles=24] [--scale=2] [--modes=dither,corner,lpc] [--out=path.png]
 //
-// Modes: `dither` is the shipped seam dither, `corner` is corner blending. The
-// in-game Shift+B toggle can't do this — you can't hold two frames side by
-// side — and the village is login-gated besides.
+// Modes: `dither` is the shipped seam dither, `corner` is corner blending with
+// the procedural mask, `lpc` is corner blending with imported LPC edge art
+// (tools/lpc-import.ts). The in-game Shift+B toggle can't do this — you can't
+// hold two frames side by side — and the village is login-gated besides.
 //
 // Everything visual comes from the same modules the client renders with —
 // wildTileAt / generateZoneGrid for the terrain, pickSeamTile / pickTileLayers
@@ -36,7 +37,7 @@ const args = process.argv.slice(2);
 const arg = (name: string) => args.find(a => a.startsWith(`--${name}=`))?.split('=')[1];
 
 const zoneId  = arg('zone');
-const modes   = (arg('modes') ?? 'dither,corner').split(',');
+const modes   = (arg('modes') ?? 'dither,corner,lpc').split(',');
 const seed    = arg('seed') ?? 'silicon-soup';
 const [atX, atY] = (arg('at') ?? '0,0').split(',').map(Number) as [number, number];
 const span    = Number(arg('tiles') ?? 24);
@@ -58,6 +59,16 @@ function art(spriteId: string): PNG | null {
   return png;
 }
 
+// Imported LPC atlases, keyed by tile id. A material with no atlas falls back
+// to its baked art plus the procedural mask, so a partial import still renders.
+const lpcArt = new Map<string, PNG | null>();
+function lpc(tile: string): PNG | null {
+  if (lpcArt.has(tile)) return lpcArt.get(tile)!;
+  const p = join(TILE_DIR, 'lpc', `${tile}.png`);
+  const png = existsSync(p) ? PNG.sync.read(readFileSync(p)) : null;
+  lpcArt.set(tile, png);
+  return png;
+}
 
 function spriteFor(tile: string, x: number, y: number): string | null {
   const entry = ts.tiles[tile];
@@ -74,19 +85,31 @@ function hexRgb(hex: string): [number, number, number] {
 /** Composite one material over the destination tile cell, weighted by the
  *  corner mask. Nearest-neighbour sampled from the source art, the same as the
  *  client's `imageSmoothingEnabled = false` path. */
-function blit(out: PNG, ox: number, oy: number, tile: string, x: number, y: number, mask: number): void {
-  const src = spriteFor(tile, x, y);
-  const png = src ? art(src) : null;
+function blit(
+  out: PNG, ox: number, oy: number, tile: string, x: number, y: number, mask: number,
+  useLpc = false,
+): void {
+  // LPC art carries its own alpha edge, so the mask picks a *cell* of the
+  // atlas rather than weighting pixels — that difference is the whole point of
+  // the comparison.
+  const atlas = useLpc ? lpc(tile) : null;
+  const src = atlas ? null : spriteFor(tile, x, y);
+  const png = atlas ?? (src ? art(src) : null);
+  const cell = atlas ? 32 : SRC;
+  const cx = atlas ? (mask & 3) * 32 : 0;
+  const cy = atlas ? (mask >> 2) * 32 : 0;
   const flat = png ? null : hexRgb(ts.tiles[tile]?.color ?? '#ff00ff');
   for (let py = 0; py < OUT_TILE; py++) {
     for (let px = 0; px < OUT_TILE; px++) {
       const u = (px + 0.5) / OUT_TILE, v = (py + 0.5) / OUT_TILE;
-      const a = mask === MASK_FULL ? 1 : cornerMaskAlpha(mask, u, v);
+      let a = atlas || mask === MASK_FULL ? 1 : cornerMaskAlpha(mask, u, v);
       if (a <= 0) continue;
       let r: number, g: number, b: number;
       if (png) {
-        const si = ((Math.floor(v * SRC) * SRC) + Math.floor(u * SRC)) << 2;
+        const si = (((cy + Math.floor(v * cell)) * png.width) + (cx + Math.floor(u * cell))) << 2;
         r = png.data[si]!; g = png.data[si + 1]!; b = png.data[si + 2]!;
+        if (atlas) a = png.data[si + 3]! / 255;
+        if (a <= 0) continue;
       } else {
         [r, g, b] = flat!;
       }
@@ -133,13 +156,15 @@ for (let ty = 0; ty < span; ty++) {
         blit(out, ox, oy, pickSeamTile(raw, x, y, ts, neighborAt), x, y, MASK_FULL);
         return;
       }
+      const useLpc = mode === 'lpc';
       const n = pickTileLayers(raw, ts, neighborAt, layerBuf);
-      // A later full-coverage layer hides everything under it — start there
-      // rather than compositing tiles nobody will see.
+      // A later full-coverage layer hides everything under it — but only with
+      // the procedural mask. LPC's mask-15 cell can be less than fully opaque,
+      // so with authored art every layer is drawn.
       let first = 0;
-      for (let i = n - 1; i > 0; i--) if (layerBuf[i]!.mask === MASK_FULL) { first = i; break; }
+      if (!useLpc) for (let i = n - 1; i > 0; i--) if (layerBuf[i]!.mask === MASK_FULL) { first = i; break; }
       for (let i = first; i < n; i++) {
-        blit(out, ox, oy, layerBuf[i]!.tile, x, y, layerBuf[i]!.mask);
+        blit(out, ox, oy, layerBuf[i]!.tile, x, y, layerBuf[i]!.mask, useLpc);
       }
     });
   }

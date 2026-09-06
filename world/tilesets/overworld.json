@@ -7,7 +7,7 @@
       "color": "#4a7a3a",
       "variants": 5,
       "variantWeights": [3, 2, 2, 1, 1],
-      "blendOrder": 3
+      "blendOrder": 2
     },
     "snow": {
       "blend": true,
@@ -43,7 +43,7 @@
       "blend": true,
       "color": "#6a4a2a",
       "variants": 5,
-      "blendOrder": 2
+      "blendOrder": 3
     },
     "water": {
       "color": "#2a4a8a",
