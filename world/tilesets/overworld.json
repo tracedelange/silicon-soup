@@ -6,7 +6,8 @@
       "blend": true,
       "color": "#4a7a3a",
       "variants": 5,
-      "variantWeights": [3, 2, 2, 1, 1]
+      "variantWeights": [3, 2, 2, 1, 1],
+      "blendOrder": 3
     },
     "snow": {
       "blend": true,
@@ -41,7 +42,8 @@
     "dirt": {
       "blend": true,
       "color": "#6a4a2a",
-      "variants": 5
+      "variants": 5,
+      "blendOrder": 2
     },
     "water": {
       "color": "#2a4a8a",
@@ -51,7 +53,8 @@
     "sand": {
       "blend": true,
       "color": "#c8b060",
-      "variants": 5
+      "variants": 5,
+      "blendOrder": 1
     },
     "void": {
       "color": "#000000"

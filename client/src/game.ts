@@ -1,6 +1,7 @@
 import { state } from './state.ts';
 import { ARMOR_SLOTS, BLOCKING_TILES, EQUIPMENT_SLOTS, SCALING_COEFFS, ABILITY_SLOTS, UNARMED_ATTACK_ID, WEAPON_ATTACK_ID, PLAYER_BASE_ACT_TICKS, TICK_MS, actTicks, resolveHotbar, xpForNext } from '../../shared/constants.ts';
-import { buildSpriteColorMap, buildTileColorMap, pickSeamTile, pickTileVariant } from '../../shared/tileset.ts';
+import { MASK_FULL, buildSpriteColorMap, buildTileColorMap, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant } from '../../shared/tileset.ts';
+import { getMaskedTile } from './tileBlend.ts';
 import { renderAbilityIcon } from '../../shared/abilityIcon.ts';
 import { rarityColor } from '../../shared/itemVisuals.ts';
 import { getPlayerSprite, whenLayerLoads } from './playerSprite.ts';
@@ -16,7 +17,7 @@ import { wildTileAt } from '../../shared/worldgen/field.ts';
 import { hash2d } from '../../shared/worldgen/noise.ts';
 import type {
   AbilityDef, ActiveZoneSnapshot, CastFailedEvent, CastFailure, CcKind, ClassId, EntitySnapshot, EquipSlot,
-  FeaturedStockEntry, InventoryStack, LootSlot, PlayerEntity, QuestDef, Range, RolledStats, StatId, TimedModifier, TrainOffer,
+  FeaturedStockEntry, InventoryStack, LootSlot, PlayerEntity, QuestDef, Range, RolledStats, StatId, TimedModifier, Tileset, TrainOffer,
 } from '../../shared/types.ts';
 
 // The tile size the world is drawn at. Not a constant: the zoom (see camZoom
@@ -48,6 +49,17 @@ function getSpriteImage(spriteId: string): HTMLImageElement | null {
 // Reused across frames — see the render loop. Grows to the largest viewport
 // seen and is never shrunk, so a resize doesn't reallocate every frame.
 let tileBuf: string[] = [];
+
+// Which seam solution the ground renders with. `corner` is the experiment
+// (masked coverage per corner, pickTileLayers); `dither` is the shipped
+// behaviour (pickSeamTile). Shift+B flips between them so the two can be
+// compared on the same patch of world, and the choice is persisted so a reload
+// doesn't silently reset the comparison mid-evaluation.
+type BlendMode = 'corner' | 'dither';
+let blendMode: BlendMode = localStorage.getItem('blendMode') === 'dither' ? 'dither' : 'corner';
+
+// Reused across the whole frame — pickTileLayers writes into it in place.
+const layerBuf = makeTileLayerBuffer();
 
 const variantSpriteIds = new Map<string, string[]>();
 function variantSpriteId(tileId: string, variant: number): string {
@@ -3540,6 +3552,17 @@ window.addEventListener('mmo:zone', () => { if (sheetOpen()) renderCharSheet(); 
 })();
 
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'B' && e.shiftKey && !chatFocused()) {
+    blendMode = blendMode === 'corner' ? 'dither' : 'corner';
+    localStorage.setItem('blendMode', blendMode);
+    state.chatLog.push({
+      from: { id: 'system', name: 'system', type: 'player' }, channel: 'system', at: Date.now(),
+      recvAt: performance.now(), text: `Ground blending: ${blendMode}`,
+    });
+    window.dispatchEvent(new Event('mmo:chat'));
+    e.preventDefault();
+    return;
+  }
   if (e.key === 'Enter') {
     if (chatFocused()) {
       const text = chatInput.value;
@@ -3821,6 +3844,29 @@ function drawTile(px: number, py: number, color: string, spriteId?: string | nul
   // No baked variant yet (or still loading) — flat color keeps the tile visible.
   ctx.fillStyle = color;
   ctx.fillRect(px, py, TILE, TILE);
+}
+
+/** One material layer of a corner-blended tile: the material's own variant art
+ *  at (x, y), clipped to the corners it covers.
+ *
+ *  A layer with no baked art can only fall back to a flat colour when it covers
+ *  the whole tile — filling a masked layer's rect with colour would paint over
+ *  the corners it did *not* win, so a partial layer is skipped instead and the
+ *  material below simply shows through until the art loads. */
+function drawTileLayer(
+  px: number, py: number, x: number, y: number, ts: Tileset, tile: string, mask: number,
+): void {
+  const entry = ts.tiles[tile];
+  const variants = entry?.variants ?? 0;
+  const spriteId = variants > 0
+    ? variantSpriteId(tile, pickTileVariant(tile, x, y, variants, entry?.variantWeights))
+    : null;
+  const img = spriteId ? getTileImage(spriteId) : null;
+  if (!spriteId || !img) {
+    if (mask === MASK_FULL) drawTile(px, py, entry?.color || '#ff00ff', null);
+    return;
+  }
+  ctx.drawImage(getMaskedTile(spriteId, mask, img), px, py, TILE, TILE);
 }
 
 function drawEntity(px: number, py: number, color: string, scale?: number, spriteId?: string | null): void {
@@ -4509,14 +4555,26 @@ function render(): void {
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
       bx = x - x0 + 1; by = y - y0 + 1;
-      const tile = pickSeamTile(tileBuf[by * bw + bx]!, x, y, ts, neighborAt);
-      const color = tileColors[tile] || '#ff00ff';
-      const tileEntry = ts.tiles[tile];
-      const variants = tileEntry?.variants ?? 0;
-      const spriteId = variants > 0
-        ? variantSpriteId(tile, pickTileVariant(tile, x, y, variants, tileEntry?.variantWeights))
-        : null;
-      drawTile(x * TILE + offsetX, y * TILE + offsetY, color, spriteId);
+      const px = x * TILE + offsetX, py = y * TILE + offsetY;
+      if (blendMode === 'corner') {
+        const layers = pickTileLayers(tileBuf[by * bw + bx]!, ts, neighborAt, layerBuf);
+        // A later full-coverage layer hides everything under it, which is the
+        // common case for ground away from a seam — start there rather than
+        // compositing tiles nobody will see.
+        let first = 0;
+        for (let i = layers - 1; i > 0; i--) if (layerBuf[i]!.mask === MASK_FULL) { first = i; break; }
+        for (let i = first; i < layers; i++) {
+          drawTileLayer(px, py, x, y, ts, layerBuf[i]!.tile, layerBuf[i]!.mask);
+        }
+      } else {
+        const tile = pickSeamTile(tileBuf[by * bw + bx]!, x, y, ts, neighborAt);
+        const tileEntry = ts.tiles[tile];
+        const variants = tileEntry?.variants ?? 0;
+        const spriteId = variants > 0
+          ? variantSpriteId(tile, pickTileVariant(tile, x, y, variants, tileEntry?.variantWeights))
+          : null;
+        drawTile(px, py, tileColors[tile] || '#ff00ff', spriteId);
+      }
     }
   }
 

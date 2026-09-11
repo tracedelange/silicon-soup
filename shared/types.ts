@@ -1452,6 +1452,19 @@ export interface TileEntry {
    *  A blocking tile (water, cell_bars) or a decoration (chest, campfire)
    *  would be drawn smeared into its neighbour, lying about the map. */
   blend?: boolean;
+  /** Opt this tile into corner blending (pickTileLayers in shared/tileset.ts)
+   *  and set its precedence. Where two participating materials meet, the
+   *  higher blendOrder is drawn over the lower, clipped to the corners it
+   *  wins — so ordering is a claim about which material encroaches on which
+   *  (grass creeps over dirt, dirt over sand), and each material needs one
+   *  mask set rather than one per pair.
+   *
+   *  Cosmetic only, same contract as `blend`: the tile id the rest of the game
+   *  sees is untouched, so set it ONLY on walkable natural ground. Orders
+   *  should be distinct — a tie means the two simply don't blend. A material
+   *  that occurs as isolated single tiles should leave this off; corner
+   *  blending covers such a tile completely. */
+  blendOrder?: number;
 }
 
 export interface Tileset {
