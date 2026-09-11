@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "test:gen": "tsx tools/test-generators.ts",
     "lint": "eslint .",
+    "lint:items": "tsx tools/lint-items.ts",
     "lint:fix": "eslint . --fix",
     "zone-editor": "tsx tools/zone-editor/server.ts",
     "ability-editor": "tsx tools/ability-editor/server.ts",

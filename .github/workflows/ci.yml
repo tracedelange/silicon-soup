@@ -29,3 +29,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # Item bases have no load-time schema (loadWorld casts the YAML straight
+      # into the registry), and a malformed one degrades silently rather than
+      # throwing — see forge/lib/lint-item.ts. Blocking problems only; the
+      # advisory warnings don't fail the build.
+      - run: npm run lint:items

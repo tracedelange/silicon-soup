@@ -1,5 +1,8 @@
+# Flavor from the generated original, kept as a comment: ItemBase has no
+# description field, so it was never read. "A weathered journal containing
+# movements of guards from a bygone era."
 id: patrol_log
 name: Old Patrol Log
-description: A weathered journal containing movements of guards from a bygone era.
-stack_size: 1
+slot: quest
+tags: [quest_item, letter]
 value: 0

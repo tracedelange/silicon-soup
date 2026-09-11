@@ -420,3 +420,19 @@ const XP_TABLE = [
 export function xpForNext(level: number): number {
   return XP_TABLE[Math.min(level, XP_TABLE.length) - 1];
 }
+
+// Every `slot` an item base may declare. Wider than EQUIPMENT_SLOTS: the tail
+// entries are inventory-only kinds (a pelt, a quest token, a coin) that no
+// equip path accepts. Nothing reads a base's slot against a list at runtime —
+// resolveEquipSlot just returns null for anything it doesn't know, which is why
+// a typo'd slot produces an inert item rather than an error. This is the
+// vocabulary the item lint (forge/lib/lint-item.ts) checks against.
+export const ITEM_BASE_SLOTS: readonly string[] = [
+  'mainhand', 'helmet', 'chest', 'gloves', 'leggings', 'boots', 'ring', 'amulet',
+  'consumable', 'quest', 'currency', 'crafting', 'misc',
+] as const;
+
+// The weapon-family words a mainhand base is expected to carry in `tags`.
+// Affix `applies_to` lists match on these, so a weapon tagged only
+// [weapon, melee] is eligible for no family-specific affix at all.
+export const WEAPON_FAMILY_TAGS: readonly string[] = ['blade', 'blunt', 'staff', 'bow', 'polearm'] as const;

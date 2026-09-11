@@ -14,6 +14,7 @@ output in `client/dist`, which goes stale).
 npm run build && npm start      # production-ish: server serves client/dist
 npm run typecheck               # tsc across root, client, pipeline, tools
 npm run lint                    # eslint
+npm run lint:items              # item-base gate (runs in CI; see forge/lib/lint-item.ts)
 npm test                        # vitest unit tests (colocated *.test.ts)
 WORLD_DIR=forge/runs/run_123/world npm start   # boot a generated world instead
 WORLD_SEED=silicon-soup npm run dev            # pick the wilderness BASE seed
