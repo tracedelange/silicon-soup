@@ -81,6 +81,29 @@ export function pickTileVariant(
   return variantCount - 1; // floating-point edge case at target ≈ total
 }
 
+/** The tone of each of tile (x, y)'s four corners, written into `out` as
+ *  [NW, NE, SE, SW] — the bit order the corner masks use.
+ *
+ *  Tone is sampled at the corner *lattice points* rather than at tile centres,
+ *  which is what lets a tone change be a curve instead of a staircase: all
+ *  four tiles meeting at a corner read the same lattice point and so agree on
+ *  its tone. That is the same guarantee pickTileLayers gives for materials,
+ *  and it is what makes the masks line up across a tile boundary with no seam.
+ *
+ *  `out` is caller-owned scratch — this runs for every visible tile every
+ *  frame, and a fresh array per tile is exactly the allocation the rest of
+ *  this file goes out of its way to avoid. */
+export function tileToneCorners(
+  tileId: string, x: number, y: number, tones: number, out: number[],
+): number[] {
+  const tone = `${tileId}~tone`;
+  out[0] = pickTileVariant(tone, x, y, tones);
+  out[1] = pickTileVariant(tone, x + 1, y, tones);
+  out[2] = pickTileVariant(tone, x + 1, y + 1, tones);
+  out[3] = pickTileVariant(tone, x, y + 1, tones);
+  return out;
+}
+
 // ── Seam dithering ─────────────────────────────────────────────────────────
 // pickTileVariant solves variation *within* a material. This solves the seam
 // *between* two materials: without it every biome boundary is an axis-aligned

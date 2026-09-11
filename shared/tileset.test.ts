@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MASK_FULL, TILE_DETAIL_SCALE, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant,
+  tileToneCorners,
 } from './tileset.ts';
 import type { Tileset } from './types.ts';
 
@@ -259,5 +260,34 @@ describe('pickTileLayers', () => {
     const n = pickTileLayers('grass', tied, () => 'dirt', buf);
     expect(Array.from({ length: n }, (_, i) => ({ ...buf[i]! })))
       .toEqual([{ tile: 'grass', mask: MASK_FULL }]);
+  });
+});
+
+describe('tileToneCorners', () => {
+  const NW = 0, NE = 1, SE = 2, SW = 3;
+  const corners = (x: number, y: number) => tileToneCorners('grass', x, y, 3, [0, 0, 0, 0]);
+
+  // The whole reason tone is sampled at corners: a boundary can only be drawn
+  // as a curve through the tile if both tiles either side of it cut the same
+  // shape, which needs them to agree about the corners they share.
+  it('gives neighbouring tiles the same tone for the corner they share', () => {
+    for (let x = -3; x < 12; x++) {
+      for (let y = -3; y < 12; y++) {
+        const c = corners(x, y);
+        expect(corners(x + 1, y)[NW]).toBe(c[NE]);
+        expect(corners(x + 1, y)[SW]).toBe(c[SE]);
+        expect(corners(x, y + 1)[NW]).toBe(c[SW]);
+        expect(corners(x - 1, y - 1)[SE]).toBe(c[NW]);
+      }
+    }
+  });
+
+  it('stays inside the tone range', () => {
+    for (let x = 0; x < 60; x++) {
+      for (const t of corners(x, 5)) {
+        expect(t).toBeGreaterThanOrEqual(0);
+        expect(t).toBeLessThan(3);
+      }
+    }
   });
 });

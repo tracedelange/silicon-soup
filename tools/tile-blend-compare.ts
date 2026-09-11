@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import {
   MASK_FULL, TILE_DETAIL_SCALE, cornerMaskAlpha, makeTileLayerBuffer, pickSeamTile, pickTileLayers,
-  pickTileVariant,
+  pickTileVariant, tileToneCorners,
 } from '../shared/tileset.ts';
 import { deriveSeeds, wildTileAt } from '../shared/worldgen/field.ts';
 import { BLOCKING_TILES } from '../shared/constants.ts';
@@ -83,42 +83,25 @@ function hexRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
-/** Composite one material over the destination tile cell, weighted by the
- *  corner mask. Nearest-neighbour sampled from the source art, the same as the
- *  client's `imageSmoothingEnabled = false` path. */
-function blit(
-  out: PNG, ox: number, oy: number, tile: string, x: number, y: number, mask: number,
-  useLpc = false,
+/** Composite one 32x32 or 64x64 source cell over the destination tile cell.
+ *  `alphaAt` weights it per pixel — the procedural corner mask, the source's
+ *  own alpha, or both. Nearest-neighbour sampled, the same as the client's
+ *  `imageSmoothingEnabled = false` path. */
+function blitCell(
+  out: PNG, ox: number, oy: number, png: PNG | null, cx: number, cy: number, cell: number,
+  flat: [number, number, number] | null, alphaAt: (u: number, v: number) => number,
+  srcAlpha: boolean,
 ): void {
-  // LPC art carries its own alpha edge, so the mask picks a *cell* of the
-  // atlas rather than weighting pixels — that difference is the whole point of
-  // the comparison.
-  const atlas = useLpc ? lpc(tile) : null;
-  const src = atlas ? null : spriteFor(tile, x, y);
-  const png = atlas ?? (src ? art(src) : null);
-  const cell = atlas ? 32 : SRC;
-  // Past the fourth row an LPC atlas carries full-coverage fills — a tone per
-  // row, a detail per column — picked per tile off two noise fields, otherwise
-  // a field of one material is one cell repeated. Mirrors fillCell in game.ts.
-  const tones = atlas && mask === MASK_FULL ? atlas.height / 32 - 4 : 0;
-  const fill = tones > 0;
-  const tone = fill ? pickTileVariant(`${tile}~tone`, x, y, tones) : 0;
-  const detail = fill
-    ? pickTileVariant(`${tile}~detail`, x, y, atlas!.width / 32, undefined, TILE_DETAIL_SCALE)
-    : 0;
-  const cx = atlas ? (fill ? detail : mask & 3) * 32 : 0;
-  const cy = atlas ? (fill ? 4 + tone : mask >> 2) * 32 : 0;
-  const flat = png ? null : hexRgb(ts.tiles[tile]?.color ?? '#ff00ff');
   for (let py = 0; py < OUT_TILE; py++) {
     for (let px = 0; px < OUT_TILE; px++) {
       const u = (px + 0.5) / OUT_TILE, v = (py + 0.5) / OUT_TILE;
-      let a = atlas || mask === MASK_FULL ? 1 : cornerMaskAlpha(mask, u, v);
+      let a = alphaAt(u, v);
       if (a <= 0) continue;
       let r: number, g: number, b: number;
       if (png) {
         const si = (((cy + Math.floor(v * cell)) * png.width) + (cx + Math.floor(u * cell))) << 2;
         r = png.data[si]!; g = png.data[si + 1]!; b = png.data[si + 2]!;
-        if (atlas) a = png.data[si + 3]! / 255;
+        if (srcAlpha) a *= png.data[si + 3]! / 255;
         if (a <= 0) continue;
       } else {
         [r, g, b] = flat!;
@@ -130,6 +113,51 @@ function blit(
       out.data[di + 3] = 255;
     }
   }
+}
+
+const OPAQUE = () => 1;
+
+/** A material's interior: tone per corner, detail per tile, each tone cut to
+ *  the corners it won. Mirrors drawLpcFill in game.ts. */
+function blitFill(out: PNG, ox: number, oy: number, atlas: PNG, tile: string, x: number, y: number): void {
+  const tones = atlas.height / 32 - 4;
+  const detail = pickTileVariant(`${tile}~detail`, x, y, atlas.width / 32, undefined, TILE_DETAIL_SCALE);
+  const [nw, ne, se, sw] = tileToneCorners(tile, x, y, tones, [0, 0, 0, 0]);
+
+  const base = Math.min(nw!, ne!, se!, sw!);
+  blitCell(out, ox, oy, atlas, detail * 32, (4 + base) * 32, 32, null, OPAQUE, true);
+  if (nw === ne && ne === se && se === sw) return;
+
+  for (let t = base + 1; t < tones; t++) {
+    const m = (nw === t ? 1 : 0) | (ne === t ? 2 : 0) | (se === t ? 4 : 0) | (sw === t ? 8 : 0);
+    if (!m) continue;
+    blitCell(out, ox, oy, atlas, detail * 32, (4 + t) * 32, 32, null,
+      (u, v) => cornerMaskAlpha(m, u, v), true);
+  }
+}
+
+/** Composite one material over the destination tile cell, weighted by the
+ *  corner mask. */
+function blit(
+  out: PNG, ox: number, oy: number, tile: string, x: number, y: number, mask: number,
+  useLpc = false,
+): void {
+  // LPC art carries its own alpha edge, so the mask picks a *cell* of the
+  // atlas rather than weighting pixels — that difference is the whole point of
+  // the comparison.
+  const atlas = useLpc ? lpc(tile) : null;
+  if (atlas && mask === MASK_FULL && atlas.height / 32 > 4) {
+    blitFill(out, ox, oy, atlas, tile, x, y);
+    return;
+  }
+  const src = atlas ? null : spriteFor(tile, x, y);
+  const png = atlas ?? (src ? art(src) : null);
+  const cell = atlas ? 32 : SRC;
+  const cx = atlas ? (mask & 3) * 32 : 0;
+  const cy = atlas ? (mask >> 2) * 32 : 0;
+  const flat = png ? null : hexRgb(ts.tiles[tile]?.color ?? '#ff00ff');
+  const alphaAt = atlas || mask === MASK_FULL ? OPAQUE : (u: number, v: number) => cornerMaskAlpha(mask, u, v);
+  blitCell(out, ox, oy, png, cx, cy, cell, flat, alphaAt, !!atlas);
 }
 
 let tileAt: (x: number, y: number) => string;

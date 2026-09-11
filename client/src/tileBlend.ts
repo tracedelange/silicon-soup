@@ -18,23 +18,27 @@ import { MASK_FULL, cornerMaskAlpha } from '../../shared/tileset.ts';
 // looking identical to unblended ones.
 const MASK_PX = 64;
 
-const masks = new Map<number, HTMLCanvasElement>();
+const masks = new Map<string, HTMLCanvasElement>();
 
-function getMask(mask: number): HTMLCanvasElement {
-  let c = masks.get(mask);
+// `px` is the resolution to cut at: the baked art's 64, or an LPC cell's 32.
+// Cutting at source resolution and letting the main canvas downscale keeps a
+// blended tile looking identical to an unblended one.
+function getMask(mask: number, px = MASK_PX): HTMLCanvasElement {
+  const key = `${mask}|${px}`;
+  let c = masks.get(key);
   if (c) return c;
   c = document.createElement('canvas');
-  c.width = c.height = MASK_PX;
+  c.width = c.height = px;
   const g = c.getContext('2d')!;
-  const img = g.createImageData(MASK_PX, MASK_PX);
-  for (let py = 0; py < MASK_PX; py++) {
-    for (let px = 0; px < MASK_PX; px++) {
-      const a = cornerMaskAlpha(mask, (px + 0.5) / MASK_PX, (py + 0.5) / MASK_PX);
-      img.data[(py * MASK_PX + px) * 4 + 3] = Math.round(a * 255);
+  const img = g.createImageData(px, px);
+  for (let my = 0; my < px; my++) {
+    for (let mx = 0; mx < px; mx++) {
+      const a = cornerMaskAlpha(mask, (mx + 0.5) / px, (my + 0.5) / px);
+      img.data[(my * px + mx) * 4 + 3] = Math.round(a * 255);
     }
   }
   g.putImageData(img, 0, 0);
-  masks.set(mask, c);
+  masks.set(key, c);
   return c;
 }
 
@@ -58,7 +62,7 @@ export function getMaskedTile(
   g.drawImage(img, 0, 0, MASK_PX, MASK_PX);
   if (mask !== MASK_FULL) {
     g.globalCompositeOperation = 'destination-in';
-    g.drawImage(getMask(mask), 0, 0);
+    g.drawImage(getMask(mask, MASK_PX), 0, 0);
   }
   masked.set(key, c);
   return c;
@@ -107,4 +111,28 @@ export function lpcFillCell(
  *  manifest to keep in sync with tools/lpc-import.ts. */
 export function lpcFillCounts(atlas: HTMLImageElement): [number, number] {
   return [atlas.height / LPC_CELL - 4, atlas.width / LPC_CELL];
+}
+
+/** One tone of a material's interior, cut to the corners that tone won. A tone
+ *  change would otherwise be an axis-aligned staircase — the same blockiness
+ *  corner blending removed from material seams, just moved to a seam inside a
+ *  single material — so it is resolved through the same masks, off the corner
+ *  tones pickCornerTone agrees on between neighbours. */
+const maskedFills = new Map<string, HTMLCanvasElement>();
+
+export function getMaskedFill(
+  atlas: HTMLImageElement, tileId: string, tone: number, detail: number, mask: number,
+): HTMLCanvasElement {
+  const key = `${tileId}|${tone}|${detail}|${mask}`;
+  let c = maskedFills.get(key);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = c.height = LPC_CELL;
+  const g = c.getContext('2d')!;
+  const [sx, sy, sw, sh] = lpcFillCell(tone, detail);
+  g.drawImage(atlas, sx, sy, sw, sh, 0, 0, LPC_CELL, LPC_CELL);
+  g.globalCompositeOperation = 'destination-in';
+  g.drawImage(getMask(mask, LPC_CELL), 0, 0);
+  maskedFills.set(key, c);
+  return c;
 }
