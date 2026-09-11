@@ -1,14 +1,272 @@
 [
   {
     "id": "health_potion",
-    "description": "A small round glass flask with a cork stopper, filled with glowing red liquid that catches the light."
+    "description": "A small round glass flask with a cork stopper, filled with glowing red liquid that catches the light.",
+    "scale": 0.6
   },
   {
     "id": "bear_claw",
-    "description": "A single curved, thick bear claw, dark brown fading to bone-yellow at the tip, with a rough worn surface."
+    "description": "A single curved, thick bear claw, dark brown fading to bone-yellow at the tip, with a rough worn surface.",
+    "scale": 0.5
   },
   {
     "id": "scroll_blank",
-    "description": "A rolled-up parchment scroll, aged cream-colored paper bound with a thin twine tie, slightly frayed at the ends."
+    "description": "A rolled-up parchment scroll, aged cream-colored paper bound with a thin twine tie, slightly frayed at the ends.",
+    "scale": 0.8
+  },
+  {
+    "id": "mana_potion",
+    "description": "A tall slender glass flask with a cork stopper, filled with luminous deep blue liquid.",
+    "scale": 0.6
+  },
+  {
+    "id": "antivenom",
+    "description": "A small wide-shouldered glass vial with a cork stopper, filled with pale green liquid, a cloth label tied at the neck.",
+    "scale": 0.6
+  },
+  {
+    "id": "potion_of_haste",
+    "description": "A small teardrop glass vial with a cork stopper, filled with bright swirling yellow liquid.",
+    "scale": 0.6
+  },
+  {
+    "id": "deer_skin",
+    "description": "A folded tan deer hide with a soft cream underside, short fur and rolled edges.",
+    "scale": 0.92
+  },
+  {
+    "id": "rabbit_fur",
+    "description": "A small square of soft brown and white rabbit fur, fluffy and loosely folded.",
+    "scale": 0.92
+  },
+  {
+    "id": "rat_pelt",
+    "description": "A scrap of coarse grey rat hide, ragged along the edges, stiff and worn.",
+    "scale": 0.92
+  },
+  {
+    "id": "rat_tail",
+    "description": "A single long thin pink-grey rat tail, faintly scaly, curved into a loose hook.",
+    "scale": 0.5
+  },
+  {
+    "id": "raw_meat",
+    "description": "A thick raw red cut of meat with pale marbled fat and a white bone end.",
+    "scale": 0.62
+  },
+  {
+    "id": "squirrel_meat",
+    "description": "Two thin lean strips of dark red raw meat, slightly curled.",
+    "scale": 0.84
+  },
+  {
+    "id": "squirrel_tail",
+    "description": "A single bushy red-brown squirrel tail, thick fur, curved into an S shape.",
+    "scale": 0.5
+  },
+  {
+    "id": "wolf_pelt",
+    "description": "A large grey wolf hide with darker guard hairs, folded into a heavy bundle.",
+    "scale": 0.92
+  },
+  {
+    "id": "slime_gel",
+    "description": "A glob of translucent green jelly, rounded and glossy, holding a soft blobby shape.",
+    "scale": 0.5
+  },
+  {
+    "id": "slime_ooze",
+    "description": "A puddle-shaped blob of thick olive-green ooze, glossy, with a few dripping strands.",
+    "scale": 0.84
+  },
+  {
+    "id": "scribe_scroll",
+    "description": "A tightly rolled cream parchment scroll bound with a red wax seal, edges slightly curled.",
+    "scale": 0.78
+  },
+  {
+    "id": "torch",
+    "description": "A short wooden handle bound with pitch-soaked cloth at one end, unlit, rough bark texture.",
+    "scale": 0.95
+  },
+  {
+    "id": "bear_fur",
+    "description": "A thick shaggy brown bear hide, coarse and heavy, folded into a loose bundle.",
+    "scale": 0.92
+  },
+  {
+    "id": "giant_rat_fur",
+    "description": "A large patch of coarse mangy brown-grey fur, ragged at the edges.",
+    "scale": 0.92
+  },
+  {
+    "id": "copper_coin",
+    "description": "A single round copper coin, warm reddish-brown, a simple stamped emblem and a worn rim.",
+    "scale": 0.5
+  },
+  {
+    "id": "gold_coin",
+    "description": "A single round gold coin, bright yellow, a stamped emblem and a milled rim.",
+    "scale": 0.5
+  },
+  {
+    "id": "common_coin_pouch",
+    "description": "A plump brown leather drawstring pouch cinched with a cord, worn and rounded.",
+    "scale": 0.68
+  },
+  {
+    "id": "bandit_ledger",
+    "description": "A small thick leather-bound book with a cracked cover, a cord tie and dog-eared pages.",
+    "scale": 0.78
+  },
+  {
+    "id": "brine_glass_lens",
+    "description": "A round disc of thick sea-green glass, polished smooth, with a salt-crusted rim.",
+    "scale": 0.72
+  },
+  {
+    "id": "child_trinket",
+    "description": "A small carved wooden bird on a short leather cord, painted in faded colors.",
+    "scale": 0.48
+  },
+  {
+    "id": "courier_letter",
+    "description": "A folded parchment letter with a broken red wax seal and a dark stain across one corner.",
+    "scale": 0.78
+  },
+  {
+    "id": "giant_rat_claw",
+    "description": "A single thick curved yellow-grey claw, cracked and worn at the tip.",
+    "scale": 0.5
+  },
+  {
+    "id": "glass_scrap",
+    "description": "A jagged shard of pale blue-green glass, sharp edged and faintly translucent.",
+    "scale": 0.5
+  },
+  {
+    "id": "goblin_amulet",
+    "description": "A crude bone amulet on a thin leather cord, carved with a rough spiral and strung with a small green bead.",
+    "scale": 0.72
+  },
+  {
+    "id": "goblin_ear",
+    "description": "A single severed pointed green ear, notched along the top edge.",
+    "scale": 0.5
+  },
+  {
+    "id": "guardian_core",
+    "description": "A faceted crystal sphere glowing pale blue from within, held in a small bronze cage.",
+    "scale": 0.72
+  },
+  {
+    "id": "iridescent_shard",
+    "description": "An angular crystal shard with glossy faces shifting between violet, teal and pink.",
+    "scale": 0.5
+  },
+  {
+    "id": "iron_scrap",
+    "description": "A bent rusted strip of iron plate, pitted with orange rust and torn at one end.",
+    "scale": 0.5
+  },
+  {
+    "id": "mirror_fragment_essence",
+    "description": "A sliver of mirrored glass wrapped in pale silver light, its face bright and reflective.",
+    "scale": 0.72
+  },
+  {
+    "id": "officers_signet_ring",
+    "description": "A heavy silver ring with a flat engraved crest on the face and a tarnished band.",
+    "scale": 0.5
+  },
+  {
+    "id": "prismatic_lens_fragment",
+    "description": "A curved wedge of clear lens glass splitting light into faint rainbow bands.",
+    "scale": 0.72
+  },
+  {
+    "id": "rat_fang",
+    "description": "A single narrow yellow-white fang, slightly curved, with a dark root end.",
+    "scale": 0.5
+  },
+  {
+    "id": "rat_king_crown",
+    "description": "A small crude crown of twisted grey wire and bone set with one dull red stone.",
+    "scale": 0.66
+  },
+  {
+    "id": "resonating_glass_shard",
+    "description": "A long shard of pale glass with a faint humming glow running along its cracks.",
+    "scale": 0.5
+  },
+  {
+    "id": "scavenged_scrap",
+    "description": "A crumpled wad of bent scrap metal and torn cloth bound together with wire.",
+    "scale": 0.5
+  },
+  {
+    "id": "scavenger_bone",
+    "description": "A single weathered bone, pale and cracked, knobbed at both ends.",
+    "scale": 0.5
+  },
+  {
+    "id": "shipping_manifest",
+    "description": "A water-stained parchment sheet covered in faded ink columns, corners curled.",
+    "scale": 0.78
+  },
+  {
+    "id": "shore_trinket",
+    "description": "A small spiral seashell with a pearlescent pink and blue inner sheen.",
+    "scale": 0.72
+  },
+  {
+    "id": "slime_sac",
+    "description": "A translucent membranous sac bulging with pale green fluid, glossy surface.",
+    "scale": 0.72
+  },
+  {
+    "id": "spider_silk",
+    "description": "A tight bundle of pale grey silken thread wound into a loose skein.",
+    "scale": 0.84
+  },
+  {
+    "id": "squirrel_nut",
+    "description": "A single large brown acorn with a textured cap.",
+    "scale": 0.5
+  },
+  {
+    "id": "tattered_hide",
+    "description": "A ragged piece of dull brown hide, torn along one edge, patchy and stiff.",
+    "scale": 0.92
+  },
+  {
+    "id": "totem_fragment",
+    "description": "A broken chunk of carved dark wood with part of a crude painted face still visible.",
+    "scale": 0.72
+  },
+  {
+    "id": "vibrating_shard",
+    "description": "A jagged pale crystal shard with faint blurred motion lines at its edges.",
+    "scale": 0.5
+  },
+  {
+    "id": "item_sword",
+    "description": "A plain steel short sword with a straight crossguard and a leather-wrapped grip, blade upright.",
+    "scale": 0.95
+  },
+  {
+    "id": "item_armor_light",
+    "description": "A light tan leather cuirass with shoulder straps and simple stitching.",
+    "scale": 0.8
+  },
+  {
+    "id": "item_scroll",
+    "description": "A rolled parchment scroll tied at the middle with a thin cord.",
+    "scale": 0.78
+  },
+  {
+    "id": "item_misc",
+    "description": "A small brown drawstring sack tied at the neck, plump and rounded.",
+    "scale": 0.8
   }
 ]

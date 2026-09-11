@@ -66,9 +66,19 @@ PALETTE     = "apollo"
 SATURATION  = 1.2
 
 # Fraction of the frame a subject's longest side should fill. Overridable per
-# subject via a "scale" key in mobs.json / items.json; this is the fallback for
-# anything that has not been classified yet.
-DEFAULT_SCALE = 0.85
+# subject via a "scale" key in mobs.json / items.json.
+#
+# Mobs default to 1.0 — i.e. fill the frame, which is what the old maximise-to-
+# 62px behaviour did. Their in-world size is not this sprite's business: the
+# client scales an entity by the template's `draw_scale` at draw time
+# (client/src/game.ts, authored 0.4–2.4 across world/entities/mobs), and every
+# one of those values was tuned against a frame-filling sprite. Shrinking the
+# art here too would multiply with it and silently make every mob small.
+#
+# Items have no such runtime scale — an icon is drawn at a fixed size — so the
+# size hierarchy has to live in the art, and their fractions are authored per
+# item in items.json (see tools/derive_item_scales.py).
+DEFAULT_SCALE = {"mobs": 1.0, "items": 0.8}
 
 HERE        = os.path.dirname(__file__)
 CLIENT_SPRITES = os.path.join(HERE, "..", "client", "public", "sprites")
@@ -490,7 +500,7 @@ def add_outline(img: Image.Image, thickness: int = 1) -> Image.Image:
 
 
 def post_process(img: Image.Image, sprite_id: str, out_dir: str,
-                 scale: float | None = None) -> str:
+                 scale: float | None = None, section: str = "items") -> str:
     """Raw ComfyUI frame → finished 64px sprite. Returns output path.
 
     The ordering here is load-bearing, and getting it wrong is what made every
@@ -552,7 +562,7 @@ def post_process(img: Image.Image, sprite_id: str, out_dir: str,
     # 6. Scale to this subject's share of the frame instead of maximising.
     #    Maximising is why a copper coin and a bear hide used to occupy the
     #    same 62px on the inventory grid.
-    frac = scale if scale is not None else DEFAULT_SCALE
+    frac = scale if scale is not None else DEFAULT_SCALE[section]
     target = max(4, int(round((SPRITE_SIZE - 2) * frac)))
     k = target / max(sprite.size)
     sprite = sprite.resize((max(1, round(sprite.width * k)),
@@ -661,7 +671,8 @@ def bake(subject: dict, manifest: dict, cfg: dict, force: bool = False) -> bool:
     # Only mob/item post_process takes a scale class; a tile is the whole frame
     # by definition, so post_process_tile has nothing to scale within it.
     if cfg.get("singleton"):
-        out_path = cfg["post_process"](img, sub_id, cfg["out"], subject.get("scale"))
+        out_path = cfg["post_process"](img, sub_id, cfg["out"],
+                                       subject.get("scale"), section)
     else:
         out_path = cfg["post_process"](img, sub_id, cfg["out"])
 
