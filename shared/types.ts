@@ -1400,6 +1400,15 @@ export interface DungeonDef {
   /** The zone program. `id` and `seed` are supplied per epoch by the loader, so
    *  a template must not set them — that is what makes the interior re-roll. */
   zone: Omit<ZoneDef, 'id' | 'seed'>;
+  /** Optional EXTERIOR: a structure physically present in the open world around
+   *  the entrance — a camp, a ruin, a walled compound — rather than a bare
+   *  portal tile. Authored as a zone (so it keeps the whole op pipeline and
+   *  every tool that edits a zone) and baked to a `grid` stamp painted onto the
+   *  field; see server/game/mapgen/bake.ts and docs/plan-poi-authoring.md. It
+   *  re-rolls with the epoch exactly as the interior does, so anything that
+   *  references it must do so by region name, never by coordinate. Same rule as
+   *  `zone`: no `id`, no `seed`. */
+  footprint?: Omit<ZoneDef, 'id' | 'seed'>;
 }
 
 export interface TileEntry {

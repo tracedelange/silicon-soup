@@ -382,7 +382,7 @@ export class World {
   canMoveTo(zoneId: string, x: number, y: number): boolean {
     if (zoneId === WILD) {
       if (!this.wildSeeds) return false;
-      return !isWildBlocked(wildTileAt(x, y, this.wildSeeds, this.atlas ?? undefined));
+      return !isWildBlocked(wildTileAt(x, y, this.wildSeeds, this.atlas ?? undefined), this.atlas ?? undefined);
     }
     const z = this.zones[zoneId];
     if (!z) return false;

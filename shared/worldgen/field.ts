@@ -189,10 +189,22 @@ export function biomeAt(x: number, y: number, s: FieldSeeds, p: FieldGenParams =
 // masses would otherwise wall players in (and can surround a settlement gate).
 // Settlement gates render as a walkable `portal` tile (overriding terrain in
 // wildTileAt) so an entrance is never sealed off by surrounding water.
+// Baked footprints (grid stamps) paint zone tiles — walls, palisades, thatch —
+// into the open world, and those must block too. Which of them block is a
+// property of the world's TILESET, which shared/ deliberately cannot read, so
+// the server resolves it at bake time and ships the answer on the atlas
+// (RegionAtlas.stampBlocking). Both sides then agree for free, the same way they
+// agree about terrain.
 export const WILD_BLOCKING: ReadonlySet<string> = new Set(['tree', 'water', 'swamp_water']);
 
-export function isWildBlocked(tile: string): boolean {
-  return WILD_BLOCKING.has(tile);
+const stampBlockingCache = new WeakMap<object, ReadonlySet<string>>();
+
+export function isWildBlocked(tile: string, atlas?: Pick<RegionAtlas, 'stampBlocking'>): boolean {
+  if (WILD_BLOCKING.has(tile)) return true;
+  if (!atlas?.stampBlocking?.length) return false;
+  let set = stampBlockingCache.get(atlas);
+  if (!set) { set = new Set(atlas.stampBlocking); stampBlockingCache.set(atlas, set); }
+  return set.has(tile);
 }
 
 export function wildTileAt(

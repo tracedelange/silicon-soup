@@ -349,7 +349,7 @@ export class Wilderness {
     for (let attempt = 0; attempt < 40; attempt++) {
       const { x, y } = candidate();
       const tile = wildTileAt(x, y, seeds, this.atlas);
-      if (tile === 'water' || tile === 'swamp_water' || tile === 'portal' || isWildBlocked(tile)) continue;
+      if (tile === 'water' || tile === 'swamp_water' || tile === 'portal' || isWildBlocked(tile, this.atlas)) continue;
       // Keep stamped ground (the grove + its cleared mouths) mob-free so the
       // treeline reads as safe ground, not a monster camp.
       if (stampTileAt(x, y, this.atlas.stamps)) continue;

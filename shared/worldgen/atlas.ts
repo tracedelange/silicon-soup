@@ -86,7 +86,7 @@ export interface DungeonSite {
 /** Bump whenever the baked footprint/gate layout changes, so disk-cached
  *  atlases from a previous shape are rejected and rebuilt (see index.ts
  *  loadOrBuildAtlas). Otherwise a stale cache silently serves the old layout. */
-export const ATLAS_REV = 6;
+export const ATLAS_REV = 7;
 
 export interface RegionAtlas {
   version: 1;
@@ -105,6 +105,10 @@ export interface RegionAtlas {
    *  Evaluated pointwise on both sides, so authored wilderness shapes cost a
    *  few descriptors here rather than a baked per-tile map. */
   stamps: WildStamp[];
+  /** Tile ids painted by `grid` stamps that block movement. shared/ cannot read
+   *  a tileset, so the server fills this at bake time and both sides consult it
+   *  through isWildBlocked (see field.ts). Empty until a footprint is baked. */
+  stampBlocking: string[];
   /** Dungeon entrances placed for this epoch. */
   sites: DungeonSite[];
   /** Reserved (R5.2b/§10): per-cell allowed combat-axis mask, baked later. */
@@ -318,6 +322,9 @@ export function buildAtlas(
     // Site footprints paint after the central grove — they never overlap it
     // (SITE_MIN_RADIUS clears the grove), but paint order is the contract.
     stamps: [...buildCentralStamps(gates, numericSeed), ...siteFootprints],
+    // Filled by the server when it bakes authored footprints onto the atlas —
+    // shared/ has no tileset to resolve blocking from (see field.ts).
+    stampBlocking: [],
     sites,
   };
 }

@@ -88,7 +88,7 @@ function invalidateTileMemo(): void { lastCx = NaN; lastCy = NaN; lastTiles = nu
 /** Whether a wilderness tile blocks movement (client-side prediction; the
  *  server is authoritative). Mirrors World.canMoveTo's wild branch. */
 export function wildWalkable(x: number, y: number): boolean {
-  return !isWildBlocked(wildTile(x, y));
+  return !isWildBlocked(wildTile(x, y), atlas ?? undefined);
 }
 
 /** All currently-streamed wilderness entities, flattened for render/pick. */

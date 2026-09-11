@@ -244,6 +244,15 @@ export function loadWorld(rootDir: string, wildEpoch = 0): WorldDefs {
       dungeons[id] = { ...def, id };
       const instance: ZoneDef = { ...def.zone, id, seed: `${id}:${wildEpoch}` };
       zones[id] = resolveBiomeOps(instance, paramOverrides, prefabs);
+      // An exterior footprint is a zone program too, so it gets the same biome-op
+      // resolution the interior does — otherwise `features` on a camp would be
+      // silently inert. It is NOT registered in `zones`: it is never entered, it
+      // is baked onto the field (server/game/mapgen/bake.ts).
+      if (def.footprint) {
+        const resolved = resolveBiomeOps({ ...def.footprint, id: `${id}__footprint` } as ZoneDef, paramOverrides, prefabs);
+        const { id: _id, seed: _seed, ...template } = resolved;
+        dungeons[id]!.footprint = template;
+      }
     }
   }
 

@@ -12,6 +12,7 @@ import { GameLoop, type LoopEvent } from './game/loop.ts';
 import { Wilderness } from './game/wilderness.ts';
 import { planRotation } from './game/rotation.ts';
 import { ATLAS_REV, buildAtlas, type RegionAtlas } from '../shared/worldgen/atlas.ts';
+import { bakeAtlasFootprints } from './game/mapgen/bake.ts';
 import { deriveSeeds } from '../shared/worldgen/field.ts';
 import { epochEndsAt, epochOf, epochSeed, WILD_EPOCH_MS } from '../shared/worldgen/epoch.ts';
 import { WILD, DEFAULT_WORLD_SEED } from '../shared/worldgen/config.ts';
@@ -45,7 +46,7 @@ import type {
   LootCorpseResponse, LootSlot, MobEntity, PlayerEntity,
   PostBoardResponse, ReadBoardResponse,
   DiscoveriesEvent, QuestsComponent, StatId, TradeMessage, TradeResponse, UseItemResponse,
-  TrainMessage, TrainListResponse, TrainResponse, TrainOffer, AbilityDef, DungeonDef,
+  TrainMessage, TrainListResponse, TrainResponse, TrainOffer, AbilityDef, DungeonDef, WorldDefs,
 } from '../shared/types.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -139,7 +140,7 @@ let worldSeed = ROTATE_WILDS ? epochSeed(BASE_SEED, wildEpoch) : BASE_SEED;
 // before setDefinitions, because portal synthesis resolves village gates and
 // dungeon entrances out of it (docs/rework.md §5.2).
 const worldDefs = loadWorld(WORLD_DIR, wildEpoch);
-const atlas = loadOrBuildAtlas(worldSeed, Object.values(worldDefs.dungeons), wildEpoch);
+const atlas = loadOrBuildAtlas(worldSeed, Object.values(worldDefs.dungeons), wildEpoch, worldDefs);
 world.atlas = atlas;
 world.wildSeeds = deriveSeeds(atlas.numericSeed);
 // Surface the resolved seed at boot — the wilderness terrain derives entirely
@@ -177,7 +178,7 @@ world.onTeleport = (fx) => {
   for (const sid of own ?? []) io.sockets.sockets.get(sid)?.emit('teleport_fx', fx);
 };
 
-function loadOrBuildAtlas(seed: string, dungeons: DungeonDef[], epoch: number): RegionAtlas {
+function loadOrBuildAtlas(seed: string, dungeons: DungeonDef[], epoch: number, defs: WorldDefs): RegionAtlas {
   // The cache is keyed by the full epoch seed, so a rotation is a cache MISS
   // rather than an invalidation — yesterday's atlas stays readable (handy when
   // debugging "where was this dungeon yesterday") until pruned below.
@@ -199,6 +200,10 @@ function loadOrBuildAtlas(seed: string, dungeons: DungeonDef[], epoch: number): 
   }
   console.log(`[atlas] building fresh atlas for seed="${seed}" (${dungeons.length} dungeons)`);
   const built = buildAtlas(seed, PREFERRED_STARTING_ZONE, dungeons, epoch);
+  // Authored exteriors are painted on here, not inside buildAtlas: that lives in
+  // shared/ and must never import mapgen (docs/plan-poi-authoring.md). Baking
+  // before the cache write keeps the footprint in the cached atlas.
+  bakeAtlasFootprints(built, dungeons, defs.blockingTiles, defs.prefabs);
   try { writeFileSync(path, JSON.stringify(built, null, 2)); }
   catch (err) { console.warn('[atlas] cache write failed:', (err as Error).message); }
   pruneAtlasCaches(seed, epoch);
@@ -550,7 +555,7 @@ function rotateWilds(epoch: number): boolean {
   let nextDefs, nextAtlas;
   try {
     nextDefs = loadWorld(WORLD_DIR, epoch);
-    nextAtlas = loadOrBuildAtlas(seed, Object.values(nextDefs.dungeons), epoch);
+    nextAtlas = loadOrBuildAtlas(seed, Object.values(nextDefs.dungeons), epoch, nextDefs);
   } catch (err) {
     console.error(`[rotate] building epoch ${epoch} failed — staying on ${wildEpoch}:`, (err as Error).message);
     return false;
