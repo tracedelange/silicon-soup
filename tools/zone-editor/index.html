@@ -148,6 +148,17 @@
   #mode-switch button { flex: 1; text-align: center; }
   .prefab-only, .mob-only { display: none; }
   body.mode-prefab .zone-only, body.mode-mob .zone-only { display: none !important; }
+  /* Field panel: only for a site's exterior footprint document. */
+  .footprint-only { display: none; }
+  body.doc-footprint .footprint-only { display: block; }
+  #epoch-row { display: flex; gap: 4px; align-items: center; }
+  #epoch-row input { width: 64px; text-align: center; }
+  #field-toggle.active { border-color: var(--accent); color: var(--accent); background: #1e1e2e; }
+  #field-readout { color: var(--text-dim); font-size: 11px; line-height: 1.6; margin-top: 6px; }
+  #epoch-report { margin-top: 6px; max-height: 190px; overflow-y: auto; font-size: 11px; }
+  #epoch-report div { display: flex; justify-content: space-between; gap: 6px; padding: 1px 0; }
+  #epoch-report .bad { color: #f87171; }
+  #epoch-report .dim { color: var(--text-dim); }
   body.mode-prefab .prefab-only { display: block; }
   body.mode-mob .mob-only { display: block; }
   #pf-palette { display: flex; flex-wrap: wrap; gap: 3px; max-height: 240px; overflow-y: auto; }
@@ -198,6 +209,20 @@
 
     <!-- Tool-contextual controls -->
     <div id="tool-context" class="zone-only"></div>
+
+    <!-- ── Field panel (site exteriors only) ── -->
+    <div class="sidebar-section zone-only footprint-only">
+      <h3>Field</h3>
+      <div id="epoch-row">
+        <button class="btn secondary sm" id="epoch-prev">◀</button>
+        <input type="number" id="epoch-input" value="0" step="1">
+        <button class="btn secondary sm" id="epoch-next">▶</button>
+      </div>
+      <button class="btn secondary sm full" id="field-toggle" style="margin-top:6px;">⛶ Preview in field</button>
+      <div id="field-readout">Bake this footprint and see where the seed puts it.</div>
+      <button class="btn secondary sm full" id="epoch-check" style="margin-top:6px;">Check 24 epochs</button>
+      <div id="epoch-report"></div>
+    </div>
 
     <!-- ── Prefab sidebar ── -->
     <div class="sidebar-section prefab-only">
@@ -362,6 +387,14 @@ const S = {
   pf: { id: null, description: '', cells: new Map(), w: 5, h: 5, tool: 'paint', paintTile: null, anchorTag: 'entrance', rot: 0, tiles: {}, prefabs: [] },
   // Mob-editor substate
   mob: { def: null, mobs: [], meta: { roles: [], behaviors: [], sprites: {} } },
+  // Which kind of document is open: a plain zone, a site's interior, or a
+  // site's exterior footprint (the only one the Field panel applies to).
+  docKind: 'zone', siteId: null,
+  // Field preview: the bake composited over the real wilderness at the position
+  // this epoch's seed gives it. Read-only on purpose — you author in the zone
+  // view and CHECK in the field view; editing through a margin-shifted,
+  // procedurally-placed frame would be a coordinate bug waiting to happen.
+  field: { on: false, epoch: 0, data: null, timer: null },
 };
 const PAINT_TAG = '_zePaint';
 const LEGEND_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*+=';
@@ -415,7 +448,14 @@ async function loadWorld() {
   S.featuresCatalog = features.operators ? features : { operators: [], prefabs: [] };
   S.packs = Array.isArray(packs) ? packs : [];
   const sel = $('zone-select'); sel.innerHTML = '<option value="">— select zone —</option>';
-  for (const z of S.zones) { const o = document.createElement('option'); o.value = z.id; o.textContent = z.name; sel.appendChild(o); }
+  const GROUPS = [['zone', 'Zones'], ['footprint', 'Site exteriors'], ['interior', 'Site interiors']];
+  for (const [kind, label] of GROUPS) {
+    const inGroup = S.zones.filter(z => (z.kind || 'zone') === kind);
+    if (!inGroup.length) continue;
+    const g = document.createElement('optgroup'); g.label = label;
+    for (const z of inGroup) { const o = document.createElement('option'); o.value = z.id; o.textContent = z.name; g.appendChild(o); }
+    sel.appendChild(g);
+  }
   populateFeaturePicker(); renderEntityList(); renderSpawnList(); renderFeatureList(); renderConnList();
   renderToolContext(); ctx.clearRect(0,0,canvas.width,canvas.height);
   setStatus(`World: ${S.world} (${S.zones.length} zones)`, 'ok');
@@ -426,6 +466,7 @@ async function loadZone(id) {
   const data = await api('GET', `/api/zones/${id}` + qs());
   if (data.error) { setStatus(data.error, 'err'); return; }
   S.zoneId = id; S.def = data.def; S.format = data.format || 'json'; S.selSpawn = null;
+  setDocKind(data.kind || 'zone', data.siteId || null);
   S.render = pick(data); S.warnings = data.warnings || [];
   $('json-path').textContent = data.path || '';
   setDirty(false); S.expanded = new Set(); loadPaintLayer(); syncTextFromDef();
@@ -495,6 +536,7 @@ async function rerender() {
   if (data.error) { setStatus('Render: ' + data.error, 'err'); return; }
   S.render = pick(data); S.warnings = data.warnings || [];
   assignRegionColors(); updateWarnBadge(); drawMap();
+  scheduleFieldRefresh();
 }
 function syncTextFromDef() {
   $('json-editor').value = JSON.stringify(S.def, null, 2);
@@ -1148,6 +1190,7 @@ function assignRegionColors() { regionColorMap = {}; if (!S.render) return; Obje
 function drawMap() {
   if (S.mode === 'prefab') return drawPrefab();
   if (S.mode === 'mob') return drawMob();
+  if (S.field.on && S.field.data) return drawField();
   if (!S.render) { ctx.clearRect(0,0,canvas.width,canvas.height); return; }
   const { grid, bounds, width, height, tileColors, spriteColors } = S.render; const def = S.def; const T = S.tileSize;
   canvas.width = width*T; canvas.height = height*T;
@@ -1243,6 +1286,101 @@ function drawMap() {
   }
 }
 
+
+// ── Field preview (site exteriors) ──────────────────────────────────────────
+// A footprint previewed against a black void tells you nothing about the seam
+// that matters most, so this composites the bake over the ACTUAL wilderness at
+// the position this epoch gives it, through the same bake the running server
+// uses. And since the arrangement re-rolls, a bake is only shippable once you
+// have seen it across a run of epochs — hence the scrubber and the sweep.
+function setDocKind(kind, siteId) {
+  S.docKind = kind; S.siteId = siteId;
+  document.body.classList.toggle('doc-footprint', kind === 'footprint');
+  if (kind !== 'footprint') { S.field.on = false; S.field.data = null; }
+  syncFieldToggle();
+}
+function syncFieldToggle() {
+  $('field-toggle').classList.toggle('active', S.field.on);
+  $('epoch-input').value = S.field.epoch;
+}
+function scheduleFieldRefresh() {
+  if (!S.field.on || S.docKind !== 'footprint') return;
+  clearTimeout(S.field.timer);
+  S.field.timer = setTimeout(refreshField, 250);
+}
+async function refreshField() {
+  if (!S.def || S.docKind !== 'footprint') return;
+  $('field-readout').textContent = 'baking…';
+  const data = await api('POST', `/api/field-preview${qs()}&epoch=${S.field.epoch}`, { def: S.def, siteId: S.siteId });
+  if (data.error) { S.field.data = null; $('field-readout').innerHTML = `<span class="err">${data.error}</span>`; drawMap(); return; }
+  S.field.data = data;
+  S.warnings = data.warnings || []; updateWarnBadge();
+  const st = data.site;
+  $('field-readout').innerHTML =
+    `<b>(${st.worldX}, ${st.worldY})</b> · ${st.biome}<br>`
+    + `band L${st.minLevel}–${st.maxLevel} · ${(st.bytes / 1024).toFixed(1)} KB stamp<br>`
+    + `${data.width - data.margin * 2}×${data.height - data.margin * 2} footprint, ${data.blocking.length} blocking tile(s)`;
+  drawMap();
+}
+async function checkEpochs() {
+  if (!S.def || !S.siteId) return;
+  const el = $('epoch-report'); el.innerHTML = '<div class="dim">sweeping…</div>';
+  const rows = await api('POST', `/api/site-epochs${qs()}&from=${S.field.epoch}&count=24`, { def: S.def, siteId: S.siteId });
+  if (rows.error) { el.innerHTML = `<div class="bad">${rows.error}</div>`; return; }
+  el.innerHTML = '';
+  for (const r of rows) {
+    const d = document.createElement('div');
+    const bad = !r.placed || r.missing.length;
+    // Clicking a row scrubs to that epoch — the report is a way IN to the
+    // problem, not just a list of them.
+    d.innerHTML = `<span class="${bad ? 'bad' : 'dim'}">e${r.epoch}</span>`
+      + `<span class="${bad ? 'bad' : ''}">${!r.placed ? 'NOT PLACED'
+          : r.missing.length ? `missing ${r.missing.join(', ')}`
+          : `${r.biome} · L${r.band.minLevel}–${r.band.maxLevel}`}</span>`;
+    d.style.cursor = 'pointer';
+    d.addEventListener('click', () => { S.field.epoch = r.epoch; syncFieldToggle(); if (S.field.on) refreshField(); });
+    el.appendChild(d);
+  }
+  const bad = rows.filter(r => !r.placed || r.missing.length).length;
+  setStatus(bad ? `${bad} of ${rows.length} epochs have problems` : `all ${rows.length} epochs clean`, bad ? 'err' : 'ok');
+}
+$('field-toggle').addEventListener('click', () => {
+  S.field.on = !S.field.on; syncFieldToggle();
+  if (S.field.on) refreshField(); else drawMap();
+});
+$('epoch-input').addEventListener('change', e => { S.field.epoch = Math.max(0, +e.target.value | 0); syncFieldToggle(); if (S.field.on) refreshField(); });
+$('epoch-prev').addEventListener('click', () => { S.field.epoch = Math.max(0, S.field.epoch - 1); syncFieldToggle(); if (S.field.on) refreshField(); });
+$('epoch-next').addEventListener('click', () => { S.field.epoch++; syncFieldToggle(); if (S.field.on) refreshField(); });
+$('epoch-check').addEventListener('click', checkEpochs);
+
+// Read-only render of the composited field. Deliberately separate from drawMap's
+// authoring overlays: those are in footprint-local coords and would land a
+// margin off here, which is exactly the class of bug the one-bake-function rule
+// exists to prevent.
+function drawField() {
+  const d = S.field.data; const T = S.tileSize; const M = d.margin;
+  canvas.width = d.width * T; canvas.height = d.height * T;
+  for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) {
+    ctx.fillStyle = d.tileColors[d.grid[y][x]] ?? '#333';
+    ctx.fillRect(x * T, y * T, T, T);
+  }
+  // The footprint's own extent, so the seam between authored and field is
+  // visible — the whole reason to preview in context.
+  ctx.strokeStyle = '#f59e0baa'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+  ctx.strokeRect(M * T + .5, M * T + .5, (d.width - M * 2) * T - 1, (d.height - M * 2) * T - 1);
+  ctx.setLineDash([]);
+  for (const [rid, b] of Object.entries(d.bounds)) {
+    ctx.strokeStyle = '#ffffff33'; ctx.lineWidth = 0.5;
+    ctx.strokeRect(b.x * T + .5, b.y * T + .5, b.w * T - 1, b.h * T - 1);
+    if (T >= 10) { const fs = Math.max(8, Math.min(T - 3, 11)); ctx.font = `${fs}px Consolas,monospace`; ctx.fillStyle = '#ffffff66'; ctx.fillText(rid, b.x * T + 2, b.y * T + fs + 1); }
+  }
+  // The entrance. bakeSiteFootprint centers the footprint on the site tile, so
+  // it is always the exact middle — a region placed `at: center` always holds it.
+  const ex = (d.site.worldX - d.ox + 0.5) * T, ey = (d.site.worldY - d.oy + 0.5) * T;
+  ctx.beginPath(); ctx.arc(ex, ey, Math.max(5, T * 0.45), 0, Math.PI * 2);
+  ctx.fillStyle = '#a78bfa66'; ctx.fill(); ctx.strokeStyle = '#c4b5fd'; ctx.lineWidth = 2; ctx.stroke();
+}
+
 // ── Canvas helpers + events ──────────────────────────────────────────────────
 function tileFromEvent(e) { const rect=canvas.getBoundingClientRect(); const T=S.tileSize; return { tx: Math.floor((e.clientX-rect.left)/T), ty: Math.floor((e.clientY-rect.top)/T) }; }
 function regionsAtTile(tx,ty){ if(!S.render) return []; return Object.entries(S.render.bounds).filter(([,b])=>tx>=b.x&&tx<b.x+b.w&&ty>=b.y&&ty<b.y+b.h).map(([id])=>id); }
@@ -1250,6 +1388,7 @@ function spawnAtTile(tx,ty){ return (S.def?.spawns ?? []).findIndex(sp => sp.at 
 
 canvas.addEventListener('mousedown', e => {
   if (S.mode==='prefab') { pfMouseDown(e); return; }
+  if (S.field.on) return;   // field preview is read-only
   if (!S.render) return; const {tx,ty}=tileFromEvent(e); S.mouseDown=true;
   if (S.tool==='region'||S.tool==='place_spawn'||S.tool==='pack') { S.regionDraft={x:tx,y:ty,w:1,h:1,sx:tx,sy:ty}; }
   else if (S.tool==='paint') { paintCell(tx,ty,e.button===2); drawMap(); }
@@ -1262,6 +1401,7 @@ canvas.addEventListener('mousedown', e => {
 });
 canvas.addEventListener('mousemove', e => {
   if (S.mode==='prefab') { pfMouseMove(e); return; }
+  if (S.field.on) return;   // field preview is read-only
   if (!S.render) return; const {tx,ty}=tileFromEvent(e); S.hoveredTile={tx,ty};
   const tile = S.paint.get(`${tx},${ty}`) ?? S.render.grid[ty]?.[tx] ?? '—';
   const regions = regionsAtTile(tx,ty);
@@ -1280,6 +1420,7 @@ canvas.addEventListener('contextmenu', e => { if (S.tool==='paint' || S.mode==='
 
 canvas.addEventListener('mouseup', async e => {
   if (S.mode==='prefab') { S.mouseDown=false; return; }
+  if (S.field.on) return;
   if (!S.render) { S.mouseDown=false; return; }
   const {tx,ty}=tileFromEvent(e); const wasDown=S.mouseDown; S.mouseDown=false;
 

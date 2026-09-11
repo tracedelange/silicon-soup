@@ -182,6 +182,15 @@ const SITE_PLACE_ATTEMPTS = 240;
 const SITE_ROCK_R = 6;
 const SITE_MOUTH_R = 2;
 
+// A site with an AUTHORED exterior (DungeonDef.footprint) needs room for the
+// whole camp, not just a standable entrance tile. Sample a coarse lattice across
+// the rect rather than every cell — 240 placement attempts x 64x64 tiles would
+// be a quarter-million field evaluations per site, and a lake or a mountain
+// shoulder is many tiles wide, so it cannot hide between samples.
+const FOOTPRINT_SAMPLE_STEP = 6;
+/** Fraction of the sampled lattice that must be buildable ground. */
+const FOOTPRINT_OPEN_FRAC = 0.8;
+
 function siteStamps(x: number, y: number, seed: number): WildStamp[] {
   return [
     { kind: 'blob', cx: x, cy: y, radius: SITE_ROCK_R, feather: 2, noiseScale: 7, seed, tile: 'rock' },
@@ -212,6 +221,34 @@ function entranceViable(x: number, y: number, seeds: FieldSeeds): boolean {
   return open >= 16; // of 25 sampled — a genuine clearing, not a gap in a thicket
 }
 
+// The stamp paints over whatever is under it, so a camp in a lake still
+// *functions* — this is an aesthetic constraint, not a correctness one, and the
+// bar is set accordingly. Trees are fine (a clearing hacked out of a forest is
+// exactly right); water and mountain are not, because the camp would read as
+// pasted on and the approach to it would be walled or drowned.
+function footprintViable(cx: number, cy: number, w: number, h: number, seeds: FieldSeeds): boolean {
+  const x0 = cx - (w >> 1);
+  const y0 = cy - (h >> 1);
+  let open = 0;
+  let total = 0;
+  for (let y = 0; y < h; y += FOOTPRINT_SAMPLE_STEP) {
+    for (let x = 0; x < w; x += FOOTPRINT_SAMPLE_STEP) {
+      const t = wildTileAt(x0 + x, y0 + y, seeds);
+      total++;
+      if (t !== 'water' && t !== 'swamp_water' && t !== 'rock') open++;
+    }
+  }
+  return total === 0 || open / total >= FOOTPRINT_OPEN_FRAC;
+}
+
+/** Half-extent a site occupies, for spacing. A bare entrance is its outcrop; an
+ *  authored exterior is however big the author drew it. */
+function siteExtent(def: DungeonDef): number {
+  const fp = def.footprint;
+  if (!fp) return SITE_ROCK_R;
+  return Math.max(fp.width ?? 0, fp.height ?? 0) / 2;
+}
+
 function matchesSiteBiome(allowed: WorldBiome[] | undefined, biome: WorldBiome): boolean {
   return !allowed?.length || allowed.includes(biome);
 }
@@ -234,24 +271,34 @@ function placeSites(dungeons: DungeonDef[], numericSeed: number): { sites: Dunge
   const seeds = deriveSeeds(numericSeed);
   const sites: DungeonSite[] = [];
   const stamps: WildStamp[] = [];
+  // Parallel to `sites` — how much room each placed site takes up, so a large
+  // authored camp is spaced by its own size rather than by an entrance pixel.
+  const extents: number[] = [];
   // Sort by id so roster file order can't perturb placement — the earlier a
   // site is placed the more freedom it has, and that must be seed-determined.
   for (const def of [...dungeons].sort((a, b) => a.id.localeCompare(b.id))) {
     const dseed = (resolveSeed(def.id) ^ numericSeed) >>> 0;
     const rng = mulberry32(dseed);
     const [rMin, rMax] = bandRadii(def.placement.min_level, def.placement.max_level);
+    const extent = siteExtent(def);
+    const fp = def.footprint;
+    // An authored exterior has far fewer viable spots on its ring than a single
+    // standable tile does, so it starts relaxing theming halfway rather than at
+    // two thirds. Every roster entry must still be placed every epoch.
+    const strictUntil = SITE_PLACE_ATTEMPTS * (fp ? 0.5 : 2 / 3);
     let placed: { x: number; y: number } | null = null;
     for (let attempt = 0; attempt < SITE_PLACE_ATTEMPTS && !placed; attempt++) {
       const angle = rng() * Math.PI * 2;
       const r = rMin + rng() * (rMax - rMin);
       const x = Math.round(Math.cos(angle) * r);
       const y = Math.round(Math.sin(angle) * r);
-      if (sites.some(st => Math.hypot(st.worldX - x, st.worldY - y) < SITE_MIN_SEPARATION)) continue;
+      if (sites.some((st, i) => Math.hypot(st.worldX - x, st.worldY - y) < SITE_MIN_SEPARATION + extent + extents[i]!)) continue;
       if (!entranceViable(x, y, seeds)) continue;
-      // Theming constraints are enforced for the first 2/3 of the attempts,
+      if (fp && !footprintViable(x, y, fp.width ?? 0, fp.height ?? 0, seeds)) continue;
+      // Theming constraints are enforced for the first stretch of the attempts,
       // then relaxed — placing the dungeon somewhere off-theme beats not
       // placing it (a discovered site must never go missing, see the doc above).
-      const strict = attempt < (SITE_PLACE_ATTEMPTS * 2) / 3;
+      const strict = attempt < strictUntil;
       if (strict && !matchesSiteBiome(def.placement.biomes, biomeAt(x, y, seeds))) continue;
       // The annulus fixes the RADIAL danger, but wobble can leave a spot's
       // local band far from the dungeon's own. Prefer entrances whose ambient
@@ -273,7 +320,11 @@ function placeSites(dungeons: DungeonDef[], numericSeed: number): { sites: Dunge
       minLevel: def.placement.min_level,
       maxLevel: def.placement.max_level,
     });
-    stamps.push(...siteStamps(placed.x, placed.y, dseed));
+    extents.push(extent);
+    // The outcrop exists to make a lone portal tile read as a place from a
+    // distance. An authored exterior does that job itself, and a ring of rock
+    // showing through the camp's transparent cells would only look like a bug.
+    if (!fp) stamps.push(...siteStamps(placed.x, placed.y, dseed));
   }
   return { sites, stamps };
 }

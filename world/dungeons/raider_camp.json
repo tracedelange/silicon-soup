@@ -1,0 +1,122 @@
+{
+  "id": "raider_camp",
+  "name": "Raider Camp",
+  "placement": {
+    "min_level": 5,
+    "max_level": 10,
+    "biomes": [
+      "grassland",
+      "plains",
+      "forest"
+    ]
+  },
+  "footprint": {
+    "display_name": "Raider Camp",
+    "tileset": "overworld",
+    "width": 48,
+    "height": 48,
+    "default_tile": "transparent",
+    "ops": [
+      {
+        "type": "region",
+        "id": "great_tent",
+        "shape": {
+          "kind": "rect",
+          "w": 11,
+          "h": 11
+        },
+        "at": {
+          "center": true
+        },
+        "floor": "wood_floor",
+        "walls": {
+          "tile": "thatch",
+          "door": {
+            "side": "south",
+            "tile": "door"
+          }
+        }
+      },
+      {
+        "type": "scatter_sites",
+        "count": 5,
+        "spacing": 13,
+        "seed": "raider_camp_tents",
+        "id_prefix": "tent",
+        "tags": [
+          "tent"
+        ],
+        "over": "transparent",
+        "margin": 7,
+        "clear": {
+          "tile": "dirt",
+          "radius": 4
+        }
+      },
+      {
+        "type": "stamp",
+        "at_tag": "tent",
+        "prefab": "house_generic",
+        "rotate": "random",
+        "seed": "raider_camp_stamp",
+        "region": "tent"
+      },
+      {
+        "type": "network",
+        "nodes_tag": "door",
+        "method": "mst",
+        "extra_edges": 0.4,
+        "edge_tag": "path"
+      },
+      {
+        "type": "route",
+        "edges": "path",
+        "tile": "dirt",
+        "width": 2,
+        "through": [
+          "transparent"
+        ],
+        "through_cost": 1
+      }
+    ]
+  },
+  "zone": {
+    "display_name": "Raider Camp — Warren",
+    "biome": "cave",
+    "width": 40,
+    "height": 34,
+    "no_edge_haze": true,
+    "level_band": {
+      "tier": 2,
+      "minLevel": 5,
+      "maxLevel": 10
+    },
+    "spawn_point": {
+      "region": "cave_main"
+    },
+    "post_ops": [
+      {
+        "type": "portal",
+        "at": {
+          "center_of_region": "cave_main"
+        },
+        "target_zone": "wild",
+        "transition": "ascend"
+      }
+    ],
+    "spawns": [
+      {
+        "entity": "bandit",
+        "region": "cave_main",
+        "count": 5,
+        "respawn_seconds": 120
+      },
+      {
+        "entity": "bandit_archer",
+        "region": "cave_main",
+        "count": 3,
+        "respawn_seconds": 120
+      }
+    ]
+  }
+}
