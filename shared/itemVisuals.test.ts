@@ -1,12 +1,12 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import { BRAND_KEYS } from './constants.ts';
 import {
-  BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, itemVisual, layerCandidates,
-  parseBaseId, rampFor, unmappedBrands, visualSignature,
+  BASE_VISUAL_ALIASES, BRAND_COLORS, MATERIAL_VISUALS, gearVisuals, itemVisual,
+  layerCandidates, parseBaseId, rampFor, unmappedBrands, visualSignature,
 } from './itemVisuals.ts';
 import type { Equipment, InventoryStack } from './types.ts';
 
@@ -191,6 +191,40 @@ describe('material class silhouettes', () => {
   it('keeps the fallback out of the cache key only when there is none', () => {
     expect(layerFor('steel_chest').fallback).toBeUndefined();
     expect(layerFor('wool_chest').fallback).toBe('chest');
+  });
+});
+
+// The whole point of the alias table is that no equippable item is left with
+// no art to reach, so the bases folder is what grades it: a new hand-authored
+// weapon that doesn't lead with a material has to claim a group here.
+describe('sprite group coverage', () => {
+  const BASES = join(ROOT, 'world/entities/items/bases');
+  const EQUIPPABLE = new Set(['mainhand', 'helmet', 'chest', 'gloves', 'leggings', 'boots', 'ring', 'amulet']);
+  const authored = readdirSync(BASES).filter((f) => f.endsWith('.yaml'))
+    .map((f) => ({
+      id: basename(f, '.yaml'),
+      ...(yaml.load(readFileSync(join(BASES, f), 'utf8')) as { slot?: string }),
+    }))
+    .filter((b) => b.slot && EQUIPPABLE.has(b.slot));
+
+  it('resolves every hand-authored equippable base to a visual', () => {
+    expect(authored.filter((b) => !itemVisual({ base: b.id })).map((b) => b.id)).toEqual([]);
+  });
+
+  it('aliases only ids that exist and would not resolve on their own', () => {
+    const ids = new Set(authored.map((b) => b.id));
+    for (const id of Object.keys(BASE_VISUAL_ALIASES)) {
+      expect(ids.has(id), `${id} is not a hand-authored equippable base`).toBe(true);
+      expect(parseBaseId(id) && MATERIAL_VISUALS[parseBaseId(id)!.material], id).toBeFalsy();
+    }
+  });
+
+  it('points every alias at a real material, so the group carries a ramp', () => {
+    for (const [id, target] of Object.entries(BASE_VISUAL_ALIASES)) {
+      const parsed = parseBaseId(target);
+      expect(parsed, `${id} -> ${target}`).not.toBeNull();
+      expect(MATERIAL_VISUALS[parsed!.material], `${id} -> ${target}`).toBeDefined();
+    }
   });
 });
 
