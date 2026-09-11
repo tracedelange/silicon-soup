@@ -1,7 +1,7 @@
 import { state } from './state.ts';
 import { ARMOR_SLOTS, BLOCKING_TILES, EQUIPMENT_SLOTS, SCALING_COEFFS, ABILITY_SLOTS, UNARMED_ATTACK_ID, WEAPON_ATTACK_ID, PLAYER_BASE_ACT_TICKS, TICK_MS, actTicks, resolveHotbar, xpForNext } from '../../shared/constants.ts';
 import { MASK_FULL, buildSpriteColorMap, buildTileColorMap, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant } from '../../shared/tileset.ts';
-import { getMaskedTile } from './tileBlend.ts';
+import { getLpcAtlas, getMaskedTile, lpcCell } from './tileBlend.ts';
 import { renderAbilityIcon } from '../../shared/abilityIcon.ts';
 import { rarityColor } from '../../shared/itemVisuals.ts';
 import { getPlayerSprite, whenLayerLoads } from './playerSprite.ts';
@@ -50,13 +50,16 @@ function getSpriteImage(spriteId: string): HTMLImageElement | null {
 // seen and is never shrunk, so a resize doesn't reallocate every frame.
 let tileBuf: string[] = [];
 
-// Which seam solution the ground renders with. `corner` is the experiment
-// (masked coverage per corner, pickTileLayers); `dither` is the shipped
-// behaviour (pickSeamTile). Shift+B flips between them so the two can be
-// compared on the same patch of world, and the choice is persisted so a reload
-// doesn't silently reset the comparison mid-evaluation.
-type BlendMode = 'corner' | 'dither';
-let blendMode: BlendMode = localStorage.getItem('blendMode') === 'dither' ? 'dither' : 'corner';
+// Which seam solution the ground renders with. `dither` is the shipped
+// behaviour (pickSeamTile); `corner` is corner coverage with a procedural mask;
+// `lpc` is corner coverage with imported LPC edge art (tools/lpc-import.ts).
+// Shift+B cycles them so all three can be compared on the same patch of world,
+// and the choice is persisted so a reload doesn't silently reset the
+// comparison mid-evaluation.
+const BLEND_MODES = ['dither', 'corner', 'lpc'] as const;
+type BlendMode = typeof BLEND_MODES[number];
+const storedBlend = localStorage.getItem('blendMode') as BlendMode | null;
+let blendMode: BlendMode = storedBlend && BLEND_MODES.includes(storedBlend) ? storedBlend : 'lpc';
 
 // Reused across the whole frame — pickTileLayers writes into it in place.
 const layerBuf = makeTileLayerBuffer();
@@ -3553,7 +3556,7 @@ window.addEventListener('mmo:zone', () => { if (sheetOpen()) renderCharSheet(); 
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'B' && e.shiftKey && !chatFocused()) {
-    blendMode = blendMode === 'corner' ? 'dither' : 'corner';
+    blendMode = BLEND_MODES[(BLEND_MODES.indexOf(blendMode) + 1) % BLEND_MODES.length]!;
     localStorage.setItem('blendMode', blendMode);
     state.chatLog.push({
       from: { id: 'system', name: 'system', type: 'player' }, channel: 'system', at: Date.now(),
@@ -3856,6 +3859,16 @@ function drawTile(px: number, py: number, color: string, spriteId?: string | nul
 function drawTileLayer(
   px: number, py: number, x: number, y: number, ts: Tileset, tile: string, mask: number,
 ): void {
+  if (blendMode === 'lpc') {
+    const atlas = getLpcAtlas(tile);
+    if (atlas) {
+      const [sx, sy, sw, sh] = lpcCell(mask);
+      ctx.drawImage(atlas, sx, sy, sw, sh, px, py, TILE, TILE);
+      return;
+    }
+    // Unmapped material — fall through to the baked art, so a partial import
+    // still renders the whole world.
+  }
   const entry = ts.tiles[tile];
   const variants = entry?.variants ?? 0;
   const spriteId = variants > 0
@@ -4556,13 +4569,17 @@ function render(): void {
     for (let x = x0; x < x1; x++) {
       bx = x - x0 + 1; by = y - y0 + 1;
       const px = x * TILE + offsetX, py = y * TILE + offsetY;
-      if (blendMode === 'corner') {
+      if (blendMode !== 'dither') {
         const layers = pickTileLayers(tileBuf[by * bw + bx]!, ts, neighborAt, layerBuf);
         // A later full-coverage layer hides everything under it, which is the
         // common case for ground away from a seam — start there rather than
-        // compositing tiles nobody will see.
+        // compositing tiles nobody will see. Only valid for the procedural
+        // mask: authored edge art is drawn to show the material beneath it
+        // through the fringe, so every layer counts.
         let first = 0;
-        for (let i = layers - 1; i > 0; i--) if (layerBuf[i]!.mask === MASK_FULL) { first = i; break; }
+        if (blendMode !== 'lpc') {
+          for (let i = layers - 1; i > 0; i--) if (layerBuf[i]!.mask === MASK_FULL) { first = i; break; }
+        }
         for (let i = first; i < layers; i++) {
           drawTileLayer(px, py, x, y, ts, layerBuf[i]!.tile, layerBuf[i]!.mask);
         }

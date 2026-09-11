@@ -63,3 +63,30 @@ export function getMaskedTile(
   masked.set(key, c);
   return c;
 }
+
+// ── Imported LPC edge art ──────────────────────────────────────────────────
+// The authored counterpart to the procedural masks above. tools/lpc-import.ts
+// bakes each material into a 4x4 atlas indexed by the same corner mask, so the
+// renderer swaps one lookup for the other and changes nothing else — which is
+// the whole reason the layer stack was built around masks rather than around a
+// particular way of producing them.
+
+const LPC_CELL = 32;
+const lpcAtlases = new Map<string, HTMLImageElement | null>();
+
+/** The LPC atlas for a material, or null if it has none (not every tile is
+ *  mapped — the renderer falls back to the procedural mask for those). */
+export function getLpcAtlas(tileId: string): HTMLImageElement | null {
+  if (lpcAtlases.has(tileId)) return lpcAtlases.get(tileId)!;
+  lpcAtlases.set(tileId, null); // mark as loading
+  const img = new Image();
+  img.onload = () => lpcAtlases.set(tileId, img);
+  img.onerror = () => {}; // unmapped material — stays null, caller falls back
+  img.src = `/tiles/lpc/${tileId}.png`;
+  return null;
+}
+
+/** Source rect of `mask` within an LPC atlas: cell (mask >> 2, mask & 3). */
+export function lpcCell(mask: number): [number, number, number, number] {
+  return [(mask & 3) * LPC_CELL, (mask >> 2) * LPC_CELL, LPC_CELL, LPC_CELL];
+}
