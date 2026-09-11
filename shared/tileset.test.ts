@@ -126,7 +126,7 @@ describe('pickTileVariant', () => {
 });
 
 // Bit order for corner masks: NW, NE, SE, SW.
-const NW = 1, NE = 2, SE = 4, SW = 8;
+const NW = 1, NE = 2, SE = 4, _SW = 8;
 
 // A neighbourAt over a literal 3x3 written the way it looks on screen, so a
 // test reads as the picture it is asserting about.
