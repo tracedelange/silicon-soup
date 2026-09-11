@@ -813,6 +813,21 @@ export type GenOp =
       /** Only paint floor where current tile is in this list. Useful for organic
        *  regions that should respect already-placed terrain (e.g. don't stomp trees). */
       only_over?: string | string[];
+      /** Reserve the region's footprint so later ops route around it. `region` is
+       *  the only placement atom that CANNOT fail — it resolves a shape and
+       *  registers it unconditionally — which makes it the way to guarantee a
+       *  space exists; without a claim, nothing stops a building scattering on
+       *  top of it. Run in a reserve-phase feature to take ground first. */
+      claim?: ClaimCategory;
+      /** Extra tiles of reservation around the region. A scatter respects a claim
+       *  at the POINT it places, but a prefab stamped on that point spreads from
+       *  it — so a bare rect claim still lets a building clip the corner of what
+       *  it was meant to protect. Roughly half the widest thing that scatters
+       *  nearby is the right value. */
+      claim_margin?: number;
+      /** Feature tags on the registered region, so ops that select by tag
+       *  (`ensure_reach.ensure_tags`, `network.nodes_tag`) can address it. */
+      tags?: string[];
     }
   | { type: 'shape'; shape: ShapeSpec; at: PositionSpec; tile: string; only_over?: string | string[] }
   | { type: 'road'; from: PointRef; to: PointRef; tile: string; width?: number }

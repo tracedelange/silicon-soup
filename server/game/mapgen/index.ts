@@ -836,7 +836,14 @@ function applyOp(op: GenOp, bb: Blackboard): void {
           );
         }
       }
-      bb.addRegion(op.id, r.bounds);
+      bb.addRegion(op.id, r.bounds, { tags: op.tags });
+      // Reserving is what turns "this region exists" into "this region is still
+      // open at the end". Everything that scatters (scatter_sites, place, stamp)
+      // already honours keepout; so does bsp's wall pass (applyBsp).
+      if (op.claim) {
+        const m = op.claim_margin ?? 0;
+        bb.claimRect({ x: r.bounds.x - m, y: r.bounds.y - m, w: r.bounds.w + m * 2, h: r.bounds.h + m * 2 }, CLAIM_BY_NAME[op.claim]);
+      }
       return;
     }
     case 'shape': {
@@ -1429,7 +1436,20 @@ function applyBsp(op: Extract<GenOp, { type: 'bsp' }>, bb: Blackboard): void {
   const prefix = op.region_prefix ?? 'room';
   const MIN_LEAF = minRoom + 2 * margin;
 
-  if (op.wall !== undefined) paintRect(bb.grid, region.x, region.y, region.w, region.h, op.wall);
+  // Reserved ground survives the wall pass. bsp starts by filling its whole
+  // region with wall, which would bury anything a reserve-phase feature carved
+  // before it — so a claimed chamber has to be an explicit exception, or
+  // `claim` means nothing in a BSP dungeon while meaning everything in a
+  // scatter-based one. (Everything else that competes for space already
+  // consults keepout; bsp predates the keepout layer.)
+  const reserved = (x: number, y: number) => !bb.isFree(x, y, CLAIM.RESERVED);
+  if (op.wall !== undefined) {
+    for (let y = region.y; y < region.y + region.h; y++) {
+      for (let x = region.x; x < region.x + region.w; x++) {
+        if (!reserved(x, y)) bb.paint(x, y, op.wall);
+      }
+    }
+  }
 
   const trySplit = (r: RegionBounds): [RegionBounds, RegionBounds] | null => {
     const canH = r.h >= MIN_LEAF * 2;
@@ -1456,9 +1476,22 @@ function applyBsp(op: Extract<GenOp, { type: 'bsp' }>, bb: Blackboard): void {
     if (hi <= lo) return start + Math.max(0, Math.floor((leafDim - room) / 2));
     return lo + Math.floor(rng() * (hi - lo + 1));
   };
+  const overlapsReserved = (r: RegionBounds): boolean => {
+    for (let y = r.y; y < r.y + r.h; y++) {
+      for (let x = r.x; x < r.x + r.w; x++) if (reserved(x, y)) return true;
+    }
+    return false;
+  };
   const makeRoom = (leaf: RegionBounds): RegionBounds => {
     const w = roomDim(leaf.w), h = roomDim(leaf.h);
-    return { x: place(leaf.x, leaf.w, w), y: place(leaf.y, leaf.h, h), w, h };
+    // A few placements to dodge reserved ground, then take the overlap anyway:
+    // a room sitting partly inside the chamber is a cosmetic oddity, a leaf with
+    // no room at all is a hole in the dungeon.
+    let room = { x: place(leaf.x, leaf.w, w), y: place(leaf.y, leaf.h, h), w, h };
+    for (let tries = 0; tries < 8 && overlapsReserved(room); tries++) {
+      room = { x: place(leaf.x, leaf.w, w), y: place(leaf.y, leaf.h, h), w, h };
+    }
+    return room;
   };
 
   const build = (r: RegionBounds, depth: number): BspNode => {
