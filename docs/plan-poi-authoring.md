@@ -385,27 +385,45 @@ Still worth adding: the same region-existence check as a **cross-epoch bake test
 in `npm run test:gen`, so a missing boss fails CI rather than being found in
 production at midnight. The interactive sweep is the same claim, run by hand.
 
-### 10. Mob editor covers about a third of `MobTemplate` — **M, tooling**
+### 10. Mob editor covers about a third of `MobTemplate` — **M, tooling. DONE.**
 
-The form (`tools/zone-editor/index.html:277`) exposes id, name, sprite, role,
-behavior, level, speed, aggro, xp, dialogue, loot. Missing and load-bearing for a
-boss: `stats`, `hp`, `armor`, `resistances`, `abilities` (id + weight +
-cooldown), `unique`, `preferred_range`, `leash_radius`, `respawn_seconds`,
-`pack`, `loot_affinity` / `loot_brand`. Abilities live in a separate tool on a
-separate port (`tools/ability-editor`, :3002).
+The form exposed 10 of `MobTemplate`'s 35 fields; everything that makes a boss a
+boss was hand-written YAML, and abilities lived in a separate tool on a separate
+port. It now covers **32 of 35**, grouped the way an author thinks about a mob
+(identity / combat / ability kit / wild spawning / loot / dialogue & flags).
 
-- Full `MobTemplate` coverage, grouped (identity / combat / ability kit / loot /
-  flags).
-- An **ability kit picker** over `world/abilities/*.yaml` with weight and cooldown
-  inline. Weight is strict priority, not a roll — say so at the point of entry,
-  because a low weight on a long-cooldown signature move starves it to never
-  firing.
-- A **derived-stats readout**: effective HP, per-hit damage, time-to-kill against
-  a level-N player of each class. `tools/combat-sim.ts` already computes this;
-  wire it in as a panel instead of a separate CLI run.
+**The form is generated from a spec, not written as markup.** 35 hand-written
+rows would be unreadable and would drift from the type the moment it changed;
+`MOB_FIELDS` *is* the coverage claim, and a coverage check against
+`MobTemplate` is a five-line script. `shop`, `featured_stock` and `trainer` are
+deliberately left to the JSON pane — merchant configuration is a different
+authoring job, and the form says so at the point it stops.
 
-Highest-leverage single change for "specify its dialog, behavior, abilities, and
-stats" — it collapses three tools and a text editor into one screen.
+**Blank deletes.** An optional field cleared in the form is removed from the
+template rather than written as 0, so an author can always get back to "derived"
+instead of being stuck with whatever the form defaulted to.
+
+- The **ability kit picker** reads `world/abilities/*.yaml` through the loader
+  and shows each entry's cooldown, range and effect kinds inline. Per-entry
+  fields are `weight` and `hp_below` — cooldown is a property of the *ability*,
+  not of the mob's use of it, so it is displayed rather than editable. The hint
+  says weight is strict priority, not a roll, because a low weight on a
+  long-cooldown signature move starves it to never firing.
+- The **combat profile** panel runs the real damage core against the template as
+  edited: effective HP, per-swing damage, and hits-to-kill both ways versus a
+  player of each class. `tools/combat-sim.ts` was split into
+  `tools/lib/combat-sim.ts` so the panel and the CLI balance table are the same
+  harness — the same one-implementation discipline the mapgen bake follows
+  between preview and runtime. The CLI's output is unchanged.
+
+**A finding fell out of wiring it up.** At level parity a *geared* fighter (iron
+sword, full iron set) kills a soldier in ~22 swings against ~10 unarmed: a
+tier-1 weapon with `D` strength scaling is strictly worse than fists, because
+unarmed gets `strBonus` *plus* a per-level term and a scaled weapon gets
+neither. That is a balance question for `docs/plan-combat-retune.md`, not a
+harness bug — the panel reports the unarmed matchup, which is what the TTK
+anchor is stated for, and the geared numbers stay in the API for when the
+weapon curve is fixed.
 
 ### 11. There is no quest editor — **M/L, tooling (new)**
 
@@ -457,7 +475,10 @@ Each step is independently useful; nothing later is blocked on a big-bang.
 4. **(5) + (7) + (7b) portals, multi-zone sites, and the reserved boss chamber.**
    The interior opens up. (7b) is small and should land with the first re-rolled
    interior, not after it.
-5. **(10) full mob editor** + combat-sim panel. The boss becomes authorable.
+5. ~~**(10) full mob editor** + combat-sim panel.~~ **Done.** 32 of 35
+   `MobTemplate` fields, generated from a spec; ability kit picker with the
+   registry's own cooldowns; a combat profile panel sharing
+   `tools/lib/combat-sim.ts` with the CLI balance table.
 6. **(8) chests** — deferred; the `inert` fixture-mob fallback covers the gap
    until the container entity is worth building.
 7. **(11) quest mode.** Ties the loop shut.

@@ -16,7 +16,10 @@ import { buildAtlas } from '../../shared/worldgen/atlas.ts';
 import { biomeAt, dangerAt, deriveSeeds, getLevelBand, wildTileAt } from '../../shared/worldgen/field.ts';
 import { epochSeed } from '../../shared/worldgen/epoch.ts';
 import { DEFAULT_WORLD_SEED } from '../../shared/worldgen/config.ts';
-import { MOB_ROLES } from '../../shared/constants.ts';
+import { BRAND_KEYS, CLASSES, MOB_ROLES } from '../../shared/constants.ts';
+import { AFFINITY_TAGS } from '../../server/game/items/generator.ts';
+import { WILD_BIOMES } from '../../shared/worldgen/field.ts';
+import { simulateTemplate } from '../lib/combat-sim.ts';
 import type { ZoneDef, Tileset, WorldDefs, Prefab, ZoneFeatureEntry, MobTemplate, DungeonDef } from '../../shared/types.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -653,14 +656,54 @@ app.put('/api/packs', (req, res) => {
 const MOB_BEHAVIORS = ['idle', 'wander', 'patrol', 'passive', 'aggressive', 'territorial', 'kiting', 'skittish'];
 
 // Enum metadata + the world's sprite palette for the mob editor's pickers.
+// Every vocabulary here is read from the source of truth rather than restated,
+// so a new brand or affinity term shows up in the form without a tooling edit.
 app.get('/api/mob-meta', (req, res) => {
   try {
     const dir = worldDirFor(req.query.world as string | undefined);
+    const { defs } = worldCtx(dir);
     const sprites: Record<string, string> = {};
-    for (const ts of Object.values(worldCtx(dir).defs.tilesets)) {
+    for (const ts of Object.values(defs.tilesets)) {
       for (const [name, v] of Object.entries(ts.sprites)) sprites[name] = v.color;
     }
-    res.json({ roles: Object.keys(MOB_ROLES), behaviors: MOB_BEHAVIORS, sprites });
+    // The ability kit picker. Mob abilities are the ones a mob can be given;
+    // cooldown and range come off the def so the form can show what a kit
+    // actually costs without the author opening a second tool.
+    const abilities = Object.values(defs.abilities)
+      .filter(a => a.actor !== 'player')
+      .map(a => ({
+        id: a.id,
+        name: a.name ?? a.id,
+        cooldown_ticks: a.cast?.cooldown_ticks ?? 0,
+        range: a.targeting?.range ?? null,
+        shape: a.targeting?.shape ?? null,
+        kinds: [...new Set((a.effects ?? []).map(e => e.kind))],
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    res.json({
+      roles: Object.keys(MOB_ROLES),
+      behaviors: MOB_BEHAVIORS,
+      sprites,
+      abilities,
+      biomes: WILD_BIOMES,
+      brands: BRAND_KEYS,
+      affinities: Object.keys(AFFINITY_TAGS).sort(),
+      mobIds: Object.keys(defs.mobs).sort(),
+      classes: Object.keys(CLASSES),
+    });
+  } catch (e) { res.status(400).json({ error: (e as Error).message }); }
+});
+
+// Derived combat profile for an (unsaved) template: effective HP, per-swing
+// damage, and hits-to-kill both ways against a player of each class. Runs the
+// real combat core through tools/lib/combat-sim.ts — the same harness
+// `npx tsx tools/combat-sim.ts` prints its balance table from, so a mob tuned
+// here and a mob checked there report the same numbers.
+app.post('/api/mob-sim', (req, res) => {
+  try {
+    const { mob, playerLevel } = req.body as { mob: MobTemplate; playerLevel?: number };
+    if (!mob?.role) return res.status(400).json({ error: 'mob with a role required' });
+    res.json(simulateTemplate(mob, playerLevel));
   } catch (e) { res.status(400).json({ error: (e as Error).message }); }
 });
 
