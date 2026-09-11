@@ -78,27 +78,48 @@
         ],
         "through_cost": 1
       }
+    ],
+    "spawns": [
+      {
+        "entity": "highway_thug",
+        "count": 4,
+        "respawn_seconds": 180
+      },
+      {
+        "entity": "bandit_archer",
+        "count": 3,
+        "respawn_seconds": 180
+      },
+      {
+        "entity": "torch",
+        "region": "great_tent",
+        "count": 2
+      }
     ]
   },
   "zone": {
     "display_name": "Raider Camp — Warren",
-    "biome": "cave",
-    "width": 40,
-    "height": 34,
+    "biome": "dungeon",
+    "tileset": "overworld",
+    "width": 48,
+    "height": 40,
     "no_edge_haze": true,
     "level_band": {
       "tier": 2,
       "minLevel": 5,
       "maxLevel": 10
     },
+    "features": [
+      "campfire_pit"
+    ],
     "spawn_point": {
-      "region": "cave_main"
+      "region": "room_1"
     },
     "post_ops": [
       {
         "type": "portal",
         "at": {
-          "center_of_region": "cave_main"
+          "center_of_region": "room_1"
         },
         "target_zone": "wild",
         "transition": "ascend"
@@ -106,17 +127,48 @@
     ],
     "spawns": [
       {
-        "entity": "bandit",
-        "region": "cave_main",
-        "count": 5,
+        "entity": "highway_thug",
+        "region": "room_2",
+        "count": 3,
+        "if_region": true,
         "respawn_seconds": 120
       },
       {
         "entity": "bandit_archer",
-        "region": "cave_main",
+        "region": "room_3",
         "count": 3,
+        "if_region": true,
         "respawn_seconds": 120
+      },
+      {
+        "entity": "highway_thug",
+        "region": "room_5",
+        "count": 2,
+        "if_region": true,
+        "respawn_seconds": 120
+      },
+      {
+        "entity": "bandit_archer",
+        "region": "room_6",
+        "count": 2,
+        "if_region": true,
+        "respawn_seconds": 120
+      },
+      {
+        "entity": "raider_chieftain",
+        "region": "room_7",
+        "count": 1,
+        "if_region": true,
+        "spawn_id": "raider_camp_boss",
+        "respawn_seconds": 600
       }
-    ]
+    ],
+    "opParams": {
+      "dungeon_bsp": {
+        "max_depth": 3,
+        "min_room": 8,
+        "max_room": 14
+      }
+    }
   }
 }

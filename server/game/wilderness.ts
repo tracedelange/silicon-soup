@@ -8,11 +8,12 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Server as IOServer } from 'socket.io';
-import type { World } from './world.ts';
+import { DEFAULT_RESPAWN_SECONDS as DEFAULT_SITE_RESPAWN_SECONDS, TICKS_PER_SECOND, type World } from './world.ts';
 import { makeMob } from './entities.ts';
 import { CHUNK_SIZE, WILD, WILD_LOAD_RADIUS } from '../../shared/worldgen/config.ts';
 import { biomeAt, dangerAt, getLevelBand, isWildBlocked, wildTileAt } from '../../shared/worldgen/field.ts';
 import { stampTileAt } from '../../shared/worldgen/stamps.ts';
+import type { SiteSpawn } from './siteSpawns.ts';
 import { mulberry32, gaussianSample } from '../../shared/worldgen/noise.ts';
 import type { RegionAtlas } from '../../shared/worldgen/atlas.ts';
 import type {
@@ -65,6 +66,12 @@ export class Wilderness {
   /** entityId → chunkKeys it is currently subscribed to. */
   private playerChunks = new Map<string, Set<string>>();
   private huntable: MobTemplate[] = [];
+  /** chunkKey → authored site spawns whose tile falls in that chunk. */
+  private siteSpawns = new Map<string, SiteSpawn[]>();
+  /** SiteSpawn.key → the entity currently standing for it. */
+  private liveSiteMobs = new Map<string, string>();
+  /** SiteSpawn.key → tick it may be re-spawned at, after being killed. */
+  private siteRespawnAt = new Map<string, number>();
 
   constructor(world: World, atlas: RegionAtlas, io: IO) {
     this.world = world;
@@ -87,7 +94,25 @@ export class Wilderness {
     this.subscribers.clear();
     this.chunkMobs.clear();
     this.playerChunks.clear();
+    // The site plan is resolved from the OLD epoch's layout — every position in
+    // it is meaningless now. The caller installs the next epoch's plan.
+    this.siteSpawns.clear();
+    this.liveSiteMobs.clear();
+    this.siteRespawnAt.clear();
     this.refreshTemplates();
+  }
+
+  /** Install this epoch's authored site population (see siteSpawns.ts). Bucketed
+   *  by chunk so materializeChunk is an O(1) lookup rather than a scan. */
+  setSiteSpawns(spawns: readonly SiteSpawn[]): void {
+    this.siteSpawns.clear();
+    for (const sp of spawns) {
+      const { cx, cy } = chunkOf(sp.x, sp.y);
+      const key = chunkKey(cx, cy);
+      let bucket = this.siteSpawns.get(key);
+      if (!bucket) { bucket = []; this.siteSpawns.set(key, bucket); }
+      bucket.push(sp);
+    }
   }
 
   /** Re-read the spawnable mob roster from world.defs. Must run after any
@@ -235,6 +260,9 @@ export class Wilderness {
     if (this.chunkMobs.has(key)) return;
     const ids = new Set<string>();
     this.chunkMobs.set(key, ids);
+    // Authored site population first: it is named content, not a roll, and it
+    // claims its tiles before the procedural scatter looks for free ground.
+    this.materializeSiteSpawns(key, ids, this.world.currentTick);
     if (this.huntable.length === 0 || !this.world.wildSeeds) return;
 
     const rng = mulberry32((this.atlas.numericSeed ^ Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663)) >>> 0);
@@ -270,6 +298,61 @@ export class Wilderness {
         ids.add(mob.id);
       }
     }
+  }
+
+  /** Spawn every authored entity in this chunk that is neither alive nor still
+   *  cooling down. Idempotent, so it doubles as the respawn step. */
+  private materializeSiteSpawns(key: string, ids: Set<string>, tick: number): boolean {
+    const bucket = this.siteSpawns.get(key);
+    if (!bucket) return false;
+    let spawned = false;
+    for (const sp of bucket) {
+      const liveId = this.liveSiteMobs.get(sp.key);
+      if (liveId && this.world.entities.has(liveId)) continue;
+      if (liveId) {
+        // It existed and is gone: killed, or despawned with its chunk. Start the
+        // clock now rather than at the moment of death, so a camp cleared while
+        // you stood in it does not refill the instant you walk back in.
+        this.liveSiteMobs.delete(sp.key);
+        this.siteRespawnAt.set(sp.key, tick + Math.max(1, Math.round((sp.respawnSeconds ?? DEFAULT_SITE_RESPAWN_SECONDS) * TICKS_PER_SECOND)));
+        continue;
+      }
+      const due = this.siteRespawnAt.get(sp.key);
+      if (due !== undefined && tick < due) continue;
+      const template = this.world.defs.mobs[sp.entity];
+      if (!template) continue;
+      // No isHuntable filter here on purpose — that denylist exists to keep
+      // quest-givers and fixtures out of the PROCEDURAL roll. Naming one in a
+      // camp's spawn list is the author saying they want it there.
+      const mob = makeMob(template, { zone: WILD, x: sp.x, y: sp.y, level: sp.level, spawnId: sp.spawnId });
+      if (sp.region) mob.components.ai.spawn_region = sp.region;
+      this.world.addEntity(mob);
+      ids.add(mob.id);
+      this.liveSiteMobs.set(sp.key, mob.id);
+      this.siteRespawnAt.delete(sp.key);
+      spawned = true;
+    }
+    return spawned;
+  }
+
+  /**
+   * Respawn authored site entities that have died. The wilderness has no
+   * equivalent of World._rebuildZone — it iterates `defs.zones` and WILD is not
+   * one of them — so this is the wild's respawn tick.
+   *
+   * Only OBSERVED chunks are considered: an unobserved chunk has been despawned
+   * wholesale and will re-materialize identically when someone returns, so
+   * running timers out there would be work nobody can see.
+   */
+  tickSiteSpawns(tick: number): boolean {
+    if (this.siteSpawns.size === 0) return false;
+    let dirty = false;
+    for (const key of this.subscribers.keys()) {
+      const ids = this.chunkMobs.get(key);
+      if (!ids) continue;
+      if (this.materializeSiteSpawns(key, ids, tick)) dirty = true;
+    }
+    return dirty;
   }
 
   // Spawns a whole pack around `anchor` instead of the lone-mob path above.
@@ -308,6 +391,17 @@ export class Wilderness {
   private despawnChunk(key: string): void {
     const ids = this.chunkMobs.get(key);
     if (!ids) return;
+    // Forget the authored entities in this chunk BEFORE removing them. Nobody
+    // is watching, so this is not a death: dropping the mapping while the entity
+    // still exists is how materializeSiteSpawns tells "despawned, put it back"
+    // apart from "killed, start the respawn clock".
+    for (const sp of this.siteSpawns.get(key) ?? []) {
+      const liveId = this.liveSiteMobs.get(sp.key);
+      const e = liveId ? this.world.entities.get(liveId) : undefined;
+      // Skip mid-fight survivors, which the loop below keeps alive — forgetting
+      // one would spawn a second copy of it on top of the first.
+      if (e && !(e.type === 'mob' && e.components.ai?.target)) this.liveSiteMobs.delete(sp.key);
+    }
     const survivors = new Set<string>();
     for (const id of ids) {
       const e = this.world.entities.get(id);
@@ -320,6 +414,15 @@ export class Wilderness {
     }
     if (survivors.size > 0) this.chunkMobs.set(key, survivors);
     else this.chunkMobs.delete(key);
+  }
+
+  /** Any baked footprint's rectangle, transparent cells included. */
+  private insideFootprint(x: number, y: number): boolean {
+    for (const st of this.atlas.stamps) {
+      if (st.kind !== 'grid') continue;
+      if (x >= st.ox && y >= st.oy && x < st.ox + st.w && y < st.oy + st.h) return true;
+    }
+    return false;
   }
 
   private findSpawnTile(cx: number, cy: number, rng: () => number): { x: number; y: number } | null {
@@ -353,6 +456,11 @@ export class Wilderness {
       // Keep stamped ground (the grove + its cleared mouths) mob-free so the
       // treeline reads as safe ground, not a monster camp.
       if (stampTileAt(x, y, this.atlas.stamps)) continue;
+      // An authored footprint is off limits WHOLE, not just where it painted:
+      // its transparent cells are the gaps between the tents, and a wandering
+      // band mob in there undercuts the authorship the camp exists for. Its
+      // population comes from the site's own spawn list instead.
+      if (this.insideFootprint(x, y)) continue;
       if (this.world.entityAt(WILD, x, y)) continue;
       return { x, y };
     }

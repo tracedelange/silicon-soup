@@ -107,6 +107,11 @@ export class GameLoop {
   timer: ReturnType<typeof setInterval> | null = null;
   onTick: ((dirty: Set<string>) => void) | null = null;
   onEvents: ((events: LoopEvent[]) => void) | null = null;
+  /** The wilderness's respawn tick. World.tickRespawns iterates `defs.zones`,
+   *  and WILD is not one of them, so authored site entities in the open world
+   *  need their own hook (see Wilderness.tickSiteSpawns). Returns whether
+   *  anything spawned, i.e. whether the wild needs a broadcast. */
+  onWildRespawn: ((tick: number) => boolean) | null = null;
 
   constructor(world: World) {
     this.world = world;
@@ -436,6 +441,7 @@ export class GameLoop {
 
     const respawnDirty = this.world.tickRespawns(this.tick);
     for (const z of respawnDirty) this.dirtyZones.add(z);
+    if (this.onWildRespawn?.(this.tick)) this.dirtyZones.add(WILD);
 
     // Advance the global day/night clock.
     this.world.timeOfDay = (this.tick % TICKS_PER_DAY) / TICKS_PER_DAY;
