@@ -30,6 +30,14 @@ const TILE_VARIANT_SALT = 0x7a11e;
 // varies. Bigger = calmer/larger patches; smaller = more frequent switching.
 const TILE_VARIANT_PATCH_SCALE = 8;
 
+// Scale for variants that differ in *detail* rather than in tone — LPC's fill
+// tiles, which are the same green with tufts scattered differently. Patching
+// those is wrong: a patch of one detail tile is that tile's tufts repeating on
+// a 32px lattice, which reads as wallpaper. Near-per-tile switching breaks the
+// alignment up and costs nothing in coherence, because tiles that match in
+// tone have no patch edge to see.
+export const TILE_DETAIL_SCALE = 1.4;
+
 // tileId → derived variant seed. Tile ids are a small fixed vocabulary.
 const variantSeeds = new Map<string, number>();
 
@@ -42,9 +50,13 @@ const variantSeeds = new Map<string, number>();
  *  of noise lands on — e.g. make the busiest/most-distinctive variant rarer
  *  than the calm default — without reintroducing per-tile noise, since it's
  *  just a non-uniform split of the same smooth noise range. Omitted or
- *  mismatched length falls back to a uniform split. */
+ *  mismatched length falls back to a uniform split.
+ *
+ *  `scale` is the feature size of the noise; pass TILE_DETAIL_SCALE for
+ *  variants that differ only in detail. */
 export function pickTileVariant(
   tileId: string, x: number, y: number, variantCount: number, weights?: number[],
+  scale: number = TILE_VARIANT_PATCH_SCALE,
 ): number {
   if (variantCount <= 1) return 0;
   // Memoized: this is called for every visible tile every frame, and hashing
@@ -54,7 +66,7 @@ export function pickTileVariant(
     seed = (TILE_VARIANT_SALT ^ hashString(tileId)) >>> 0;
     variantSeeds.set(tileId, seed);
   }
-  const n = valueNoise(x, y, TILE_VARIANT_PATCH_SCALE, seed); // smooth [0, 1)
+  const n = valueNoise(x, y, scale, seed); // smooth [0, 1)
 
   if (!weights || weights.length !== variantCount) {
     return Math.min(variantCount - 1, Math.floor(n * variantCount));
@@ -67,6 +79,29 @@ export function pickTileVariant(
     if (target < acc) return i;
   }
   return variantCount - 1; // floating-point edge case at target ≈ total
+}
+
+/** The tone of each of tile (x, y)'s four corners, written into `out` as
+ *  [NW, NE, SE, SW] — the bit order the corner masks use.
+ *
+ *  Tone is sampled at the corner *lattice points* rather than at tile centres,
+ *  which is what lets a tone change be a curve instead of a staircase: all
+ *  four tiles meeting at a corner read the same lattice point and so agree on
+ *  its tone. That is the same guarantee pickTileLayers gives for materials,
+ *  and it is what makes the masks line up across a tile boundary with no seam.
+ *
+ *  `out` is caller-owned scratch — this runs for every visible tile every
+ *  frame, and a fresh array per tile is exactly the allocation the rest of
+ *  this file goes out of its way to avoid. */
+export function tileToneCorners(
+  tileId: string, x: number, y: number, tones: number, out: number[],
+): number[] {
+  const tone = `${tileId}~tone`;
+  out[0] = pickTileVariant(tone, x, y, tones);
+  out[1] = pickTileVariant(tone, x + 1, y, tones);
+  out[2] = pickTileVariant(tone, x + 1, y + 1, tones);
+  out[3] = pickTileVariant(tone, x, y + 1, tones);
+  return out;
 }
 
 // ── Seam dithering ─────────────────────────────────────────────────────────

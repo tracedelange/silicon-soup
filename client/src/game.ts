@@ -1,7 +1,7 @@
 import { state } from './state.ts';
 import { ARMOR_SLOTS, BLOCKING_TILES, EQUIPMENT_SLOTS, SCALING_COEFFS, ABILITY_SLOTS, UNARMED_ATTACK_ID, WEAPON_ATTACK_ID, PLAYER_BASE_ACT_TICKS, TICK_MS, actTicks, resolveHotbar, xpForNext } from '../../shared/constants.ts';
-import { MASK_FULL, buildSpriteColorMap, buildTileColorMap, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant } from '../../shared/tileset.ts';
-import { getLpcAtlas, getMaskedTile, lpcCell } from './tileBlend.ts';
+import { MASK_FULL, TILE_DETAIL_SCALE, buildSpriteColorMap, buildTileColorMap, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant, tileToneCorners } from '../../shared/tileset.ts';
+import { getLpcAtlas, getMaskedFill, getMaskedTile, lpcCell, lpcFillCell, lpcFillCounts } from './tileBlend.ts';
 import { renderAbilityIcon } from '../../shared/abilityIcon.ts';
 import { rarityColor } from '../../shared/itemVisuals.ts';
 import { getPlayerSprite, whenLayerLoads } from './playerSprite.ts';
@@ -3856,12 +3856,55 @@ function drawTile(px: number, py: number, color: string, spriteId?: string | nul
  *  the whole tile — filling a masked layer's rect with colour would paint over
  *  the corners it did *not* win, so a partial layer is skipped instead and the
  *  material below simply shows through until the art loads. */
+// Scratch, like layerBuf: drawLpcFill runs for every visible ground tile.
+const toneBuf = [0, 0, 0, 0];
+
+/** Draw an LPC layer that covers the whole tile: the material's interior,
+ *  which varies in tone and in detail.
+ *
+ *  Tone is resolved per *corner*, not per tile, and each tone is drawn cut to
+ *  the corners it won — so where two tones meet the boundary is a curve
+ *  through the tile, the same treatment material seams get, rather than the
+ *  staircase of 32px squares that picking one tone per tile produces. */
+function drawLpcFill(
+  atlas: HTMLImageElement, tile: string, x: number, y: number, px: number, py: number,
+): void {
+  const [tones, details] = lpcFillCounts(atlas);
+  // A distinct id from the tone's, so the two picks read distinct noise:
+  // sharing one would tie a tile's detail to its tone and collapse the two
+  // fields back into one.
+  const detail = pickTileVariant(`${tile}~detail`, x, y, details, undefined, TILE_DETAIL_SCALE);
+  const [nw, ne, se, sw] = tileToneCorners(tile, x, y, tones, toneBuf) as [number, number, number, number];
+
+  // The common case by far — away from a tone boundary all four corners agree,
+  // and the tile is one straight draw with nothing to composite.
+  const base = Math.min(nw, ne, se, sw);
+  const [bx, by, bw, bh] = lpcFillCell(base, detail);
+  ctx.drawImage(atlas, bx, by, bw, bh, px, py, TILE, TILE);
+  if (nw === ne && ne === se && se === sw) return;
+
+  // Everything above the lowest tone present, each clipped to its own corners.
+  for (let t = base + 1; t < tones; t++) {
+    const mask = (nw === t ? 1 : 0) | (ne === t ? 2 : 0) | (se === t ? 4 : 0) | (sw === t ? 8 : 0);
+    if (mask) ctx.drawImage(getMaskedFill(atlas, tile, t, detail, mask), px, py, TILE, TILE);
+  }
+}
+
 function drawTileLayer(
   px: number, py: number, x: number, y: number, ts: Tileset, tile: string, mask: number,
 ): void {
   if (blendMode === 'lpc') {
     const atlas = getLpcAtlas(tile);
     if (atlas) {
+      // A tile's interior is the same art everywhere, so an open field is one
+      // repeated cell unless it varies. Tone and detail come off separate
+      // noise fields at separate scales: a shade of grass should hold for a
+      // patch, while which cell's tufts get drawn should change nearly every
+      // tile or the tufts line up on a 32px grid and read as wallpaper.
+      if (mask === MASK_FULL && lpcFillCounts(atlas)[0] > 0) {
+        drawLpcFill(atlas, tile, x, y, px, py);
+        return;
+      }
       const [sx, sy, sw, sh] = lpcCell(mask);
       ctx.drawImage(atlas, sx, sy, sw, sh, px, py, TILE, TILE);
       return;
