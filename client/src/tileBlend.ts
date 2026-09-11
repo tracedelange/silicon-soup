@@ -90,3 +90,21 @@ export function getLpcAtlas(tileId: string): HTMLImageElement | null {
 export function lpcCell(mask: number): [number, number, number, number] {
   return [(mask & 3) * LPC_CELL, (mask >> 2) * LPC_CELL, LPC_CELL, LPC_CELL];
 }
+
+/** Source rect of one of a material's full-coverage interiors: `tone` (row)
+ *  is a shade of the material, `detail` (column) is where its scattered bits
+ *  fall. Only meaningful for MASK_FULL — every other mask carries edge art and
+ *  exists once. */
+export function lpcFillCell(
+  tone: number, detail: number,
+): [number, number, number, number] {
+  return [detail * LPC_CELL, (4 + tone) * LPC_CELL, LPC_CELL, LPC_CELL];
+}
+
+/** How many tones and details the atlas carries, read off its two dimensions:
+ *  the corner set is the first four rows and every row past it is a tone, each
+ *  as wide as the material has details. Deriving it from the PNG means no
+ *  manifest to keep in sync with tools/lpc-import.ts. */
+export function lpcFillCounts(atlas: HTMLImageElement): [number, number] {
+  return [atlas.height / LPC_CELL - 4, atlas.width / LPC_CELL];
+}

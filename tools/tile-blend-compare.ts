@@ -20,7 +20,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
 import {
-  MASK_FULL, cornerMaskAlpha, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant,
+  MASK_FULL, TILE_DETAIL_SCALE, cornerMaskAlpha, makeTileLayerBuffer, pickSeamTile, pickTileLayers,
+  pickTileVariant,
 } from '../shared/tileset.ts';
 import { deriveSeeds, wildTileAt } from '../shared/worldgen/field.ts';
 import { BLOCKING_TILES } from '../shared/constants.ts';
@@ -96,8 +97,17 @@ function blit(
   const src = atlas ? null : spriteFor(tile, x, y);
   const png = atlas ?? (src ? art(src) : null);
   const cell = atlas ? 32 : SRC;
-  const cx = atlas ? (mask & 3) * 32 : 0;
-  const cy = atlas ? (mask >> 2) * 32 : 0;
+  // Past the fourth row an LPC atlas carries full-coverage fills — a tone per
+  // row, a detail per column — picked per tile off two noise fields, otherwise
+  // a field of one material is one cell repeated. Mirrors fillCell in game.ts.
+  const tones = atlas && mask === MASK_FULL ? atlas.height / 32 - 4 : 0;
+  const fill = tones > 0;
+  const tone = fill ? pickTileVariant(`${tile}~tone`, x, y, tones) : 0;
+  const detail = fill
+    ? pickTileVariant(`${tile}~detail`, x, y, atlas!.width / 32, undefined, TILE_DETAIL_SCALE)
+    : 0;
+  const cx = atlas ? (fill ? detail : mask & 3) * 32 : 0;
+  const cy = atlas ? (fill ? 4 + tone : mask >> 2) * 32 : 0;
   const flat = png ? null : hexRgb(ts.tiles[tile]?.color ?? '#ff00ff');
   for (let py = 0; py < OUT_TILE; py++) {
     for (let px = 0; px < OUT_TILE; px++) {

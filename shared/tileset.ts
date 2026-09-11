@@ -30,6 +30,14 @@ const TILE_VARIANT_SALT = 0x7a11e;
 // varies. Bigger = calmer/larger patches; smaller = more frequent switching.
 const TILE_VARIANT_PATCH_SCALE = 8;
 
+// Scale for variants that differ in *detail* rather than in tone — LPC's fill
+// tiles, which are the same green with tufts scattered differently. Patching
+// those is wrong: a patch of one detail tile is that tile's tufts repeating on
+// a 32px lattice, which reads as wallpaper. Near-per-tile switching breaks the
+// alignment up and costs nothing in coherence, because tiles that match in
+// tone have no patch edge to see.
+export const TILE_DETAIL_SCALE = 1.4;
+
 // tileId → derived variant seed. Tile ids are a small fixed vocabulary.
 const variantSeeds = new Map<string, number>();
 
@@ -42,9 +50,13 @@ const variantSeeds = new Map<string, number>();
  *  of noise lands on — e.g. make the busiest/most-distinctive variant rarer
  *  than the calm default — without reintroducing per-tile noise, since it's
  *  just a non-uniform split of the same smooth noise range. Omitted or
- *  mismatched length falls back to a uniform split. */
+ *  mismatched length falls back to a uniform split.
+ *
+ *  `scale` is the feature size of the noise; pass TILE_DETAIL_SCALE for
+ *  variants that differ only in detail. */
 export function pickTileVariant(
   tileId: string, x: number, y: number, variantCount: number, weights?: number[],
+  scale: number = TILE_VARIANT_PATCH_SCALE,
 ): number {
   if (variantCount <= 1) return 0;
   // Memoized: this is called for every visible tile every frame, and hashing
@@ -54,7 +66,7 @@ export function pickTileVariant(
     seed = (TILE_VARIANT_SALT ^ hashString(tileId)) >>> 0;
     variantSeeds.set(tileId, seed);
   }
-  const n = valueNoise(x, y, TILE_VARIANT_PATCH_SCALE, seed); // smooth [0, 1)
+  const n = valueNoise(x, y, scale, seed); // smooth [0, 1)
 
   if (!weights || weights.length !== variantCount) {
     return Math.min(variantCount - 1, Math.floor(n * variantCount));

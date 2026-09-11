@@ -15,6 +15,7 @@ import { PNG } from 'pngjs';
 export const TILE_PX = 32;
 
 /** Corner bits, matching shared/tileset.ts: NW=1, NE=2, SE=4, SW=8. */
+export const MASK_FULL = 1 | 2 | 4 | 8;
 export const MASK_DIAG_NW_SE = 1 | 4;
 export const MASK_DIAG_NE_SW = 2 | 8;
 
@@ -22,6 +23,12 @@ export interface LpcTerrain {
   name: string;
   /** corner mask → tile index in the sheet (row-major, 32 columns). */
   byMask: Map<number, number>;
+  /** Every full-coverage tile the terrain ships, in sheet order. These are a
+   *  material's *interior* — no edge art — so they are interchangeable, and a
+   *  terrain ships several: one flat and a few with scattered detail. Keeping
+   *  only the first (as byMask does) is what made an open field of grass a
+   *  single repeated colour. */
+  fills: number[];
 }
 
 export interface LpcSheet {
@@ -36,7 +43,7 @@ export function readLpcSheet(tsxPath: string, pngPath: string): LpcSheet {
   const cols = Math.floor(png.width / TILE_PX);
 
   const terrains: LpcTerrain[] = [...xml.matchAll(/<terrain\s+name="([^"]+)"/g)]
-    .map(m => ({ name: m[1]!, byMask: new Map<number, number>() }));
+    .map(m => ({ name: m[1]!, byMask: new Map<number, number>(), fills: [] }));
 
   for (const m of xml.matchAll(/<tile\s+id="(\d+)"\s+terrain="([^"]*)"\s*\/>/g)) {
     const id = Number(m[1]);
@@ -53,6 +60,7 @@ export function readLpcSheet(tsxPath: string, pngPath: string): LpcSheet {
     // First one wins: a few terrains list the same corner shape twice (recolour
     // rows), and taking the earliest keeps a terrain's tiles contiguous.
     if (!terrain.byMask.has(mask)) terrain.byMask.set(mask, id);
+    if (mask === MASK_FULL) terrain.fills.push(id);
   }
   return { png, cols, terrains };
 }

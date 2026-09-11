@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MASK_FULL, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant } from './tileset.ts';
+import {
+  MASK_FULL, TILE_DETAIL_SCALE, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant,
+} from './tileset.ts';
 import type { Tileset } from './types.ts';
 
 const ts: Tileset = {
@@ -122,6 +124,21 @@ describe('pickTileVariant', () => {
     for (let x = 0; x < 200; x++) {
       expect(pickTileVariant('sand', x, 6, 3, [1, 0, 1])).not.toBe(1);
     }
+  });
+
+  // The detail scale exists to break up a repeating cell, which it can only do
+  // by switching far more often than the patch scale does — that is the whole
+  // of its job, so assert the relation rather than a switch count.
+  it('switches more often at the detail scale than at the patch default', () => {
+    const runs = (scale?: number) => {
+      let n = 0;
+      for (let x = 1; x < 300; x++) {
+        if (pickTileVariant('grass', x, 4, 4, undefined, scale)
+            !== pickTileVariant('grass', x - 1, 4, 4, undefined, scale)) n++;
+      }
+      return n;
+    };
+    expect(runs(TILE_DETAIL_SCALE)).toBeGreaterThan(runs());
   });
 });
 

@@ -1,7 +1,7 @@
 import { state } from './state.ts';
 import { ARMOR_SLOTS, BLOCKING_TILES, EQUIPMENT_SLOTS, SCALING_COEFFS, ABILITY_SLOTS, UNARMED_ATTACK_ID, WEAPON_ATTACK_ID, PLAYER_BASE_ACT_TICKS, TICK_MS, actTicks, resolveHotbar, xpForNext } from '../../shared/constants.ts';
-import { MASK_FULL, buildSpriteColorMap, buildTileColorMap, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant } from '../../shared/tileset.ts';
-import { getLpcAtlas, getMaskedTile, lpcCell } from './tileBlend.ts';
+import { MASK_FULL, TILE_DETAIL_SCALE, buildSpriteColorMap, buildTileColorMap, makeTileLayerBuffer, pickSeamTile, pickTileLayers, pickTileVariant } from '../../shared/tileset.ts';
+import { getLpcAtlas, getMaskedTile, lpcCell, lpcFillCell, lpcFillCounts } from './tileBlend.ts';
 import { renderAbilityIcon } from '../../shared/abilityIcon.ts';
 import { rarityColor } from '../../shared/itemVisuals.ts';
 import { getPlayerSprite, whenLayerLoads } from './playerSprite.ts';
@@ -3856,13 +3856,32 @@ function drawTile(px: number, py: number, color: string, spriteId?: string | nul
  *  the whole tile — filling a masked layer's rect with colour would paint over
  *  the corners it did *not* win, so a partial layer is skipped instead and the
  *  material below simply shows through until the art loads. */
+/** The atlas rect for a corner-blended tile: the mask's cell, except for a
+ *  full-coverage tile, which picks among the material's interiors. */
+function fillCell(
+  atlas: HTMLImageElement, tile: string, x: number, y: number, mask: number,
+): [number, number, number, number] {
+  const [tones, details] = lpcFillCounts(atlas);
+  if (mask !== MASK_FULL || tones < 1) return lpcCell(mask);
+  // Distinct ids so the two picks read distinct noise: sharing one would tie a
+  // tile's detail to its tone and collapse the two fields back into one.
+  const tone = pickTileVariant(`${tile}~tone`, x, y, tones);
+  const detail = pickTileVariant(`${tile}~detail`, x, y, details, undefined, TILE_DETAIL_SCALE);
+  return lpcFillCell(tone, detail);
+}
+
 function drawTileLayer(
   px: number, py: number, x: number, y: number, ts: Tileset, tile: string, mask: number,
 ): void {
   if (blendMode === 'lpc') {
     const atlas = getLpcAtlas(tile);
     if (atlas) {
-      const [sx, sy, sw, sh] = lpcCell(mask);
+      // A tile's interior is the same art everywhere, so an open field is one
+      // repeated cell unless it varies. Tone and detail come off separate
+      // noise fields at separate scales: a shade of grass should hold for a
+      // patch, while which cell's tufts get drawn should change nearly every
+      // tile or the tufts line up on a 32px grid and read as wallpaper.
+      const [sx, sy, sw, sh] = fillCell(atlas, tile, x, y, mask);
       ctx.drawImage(atlas, sx, sy, sw, sh, px, py, TILE, TILE);
       return;
     }
