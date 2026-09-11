@@ -1,6 +1,7 @@
 id: squirrel
 name: Squirrel
 sprite: squirrel
+sprite_facing: west
 level: 1
 level_range: [1, 6]
 role: passive

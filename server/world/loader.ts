@@ -279,6 +279,11 @@ export function loadWorld(rootDir: string, wildEpoch = 0): WorldDefs {
         throw new Error(`Mob "${mob.id}" (${file}): unknown ability "${entry.ability}". Define it in world/abilities/.`);
       }
     }
+    // A typo'd sprite_facing is invisible in-game — the sprite just never
+    // mirrors — so reject it here rather than let it read as "front-facing art".
+    if (mob.sprite_facing && mob.sprite_facing !== 'east' && mob.sprite_facing !== 'west') {
+      throw new Error(`Mob "${mob.id}" (${file}): invalid sprite_facing "${mob.sprite_facing}". Must be "east" or "west".`);
+    }
     for (const b of mob.biomes ?? []) {
       if (!WILD_BIOMES.includes(b)) {
         throw new Error(`Mob "${mob.id}" (${file}): invalid biome "${b}". Must be one of: ${WILD_BIOMES.join(', ')}`);

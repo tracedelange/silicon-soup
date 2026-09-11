@@ -76,6 +76,7 @@ const MOB_BODY = {
   board_id: z.string().optional(),
   light_radius: z.number().optional(),
   draw_scale: z.number().optional(),
+  sprite_facing: z.enum(['east', 'west']).optional(),
   respawn_seconds: z.number().optional(),
   stats: MobStatsSchema.optional(),
   armor: z.number().optional(),

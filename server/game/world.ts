@@ -610,6 +610,10 @@ export class World {
       if (lr) snap.lightRadius = lr;
       const ds = templateId ? this.defs.mobs[templateId]?.draw_scale : undefined;
       if (ds != null) snap.drawScale = ds;
+      // Only side-profile art can be mirrored, so facing is only worth the wire
+      // bytes when the template declares which way its profile looks.
+      const sf = tmpl?.sprite_facing;
+      if (sf) { snap.spriteFacing = sf; snap.facing = mob.facing; }
     }
     if (e.type === 'ground_item') {
       snap.base = e.base;
