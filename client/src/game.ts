@@ -3,6 +3,7 @@ import { ARMOR_SLOTS, BLOCKING_TILES, EQUIPMENT_SLOTS, SCALING_COEFFS, ABILITY_S
 import { buildSpriteColorMap, buildTileColorMap, pickSeamTile, pickTileVariant } from '../../shared/tileset.ts';
 import { renderAbilityIcon } from '../../shared/abilityIcon.ts';
 import { getPlayerSprite } from './playerSprite.ts';
+import { snapDamped, stepDamped, type Damped } from '../../shared/motion.ts';
 import type { IconSpec } from '../../shared/abilityIcon.ts';
 import {
   isWild, wildTile, wildEntities, wildActiveZones, wildWalkable, discoveredSites, revealedSites, getWildAtlas, getWildSeeds,
@@ -1857,11 +1858,89 @@ let lastCamera: CameraTransform = { offsetX: 0, offsetY: 0 };
 const CAM_SMOOTH_TIME = 0.30;  // seconds to converge; lower = tighter, higher = floatier
 // Past this the move isn't a walk — a portal, respawn, or blink. Cut, don't pan.
 const CAM_SNAP_TILES = 6;
-let camX = 0, camY = 0;
-let camVx = 0, camVy = 0;
+const camPos: [Damped, Damped] = [{ value: 0, velocity: 0 }, { value: 0, velocity: 0 }];
 let camReady = false;
 let camLastMs = 0;
 let camZoneRef = '';
+
+// Entity motion. Positions arrive as whole tiles a couple of ticks apart, so
+// drawing an entity at its tile teleports it 32px at a time. Each entity gets
+// the same critically damped spring the camera uses, eased toward its
+// authoritative tile — the tile itself is untouched, so this is purely how the
+// sprite is drawn and nothing about hit detection, pathing or server truth
+// moves with it.
+//
+// Tighter than the camera on purpose. The camera can afford to float because
+// nothing is happening at its exact position, but a mob that lags a third of a
+// tile behind where it actually is makes melee range read wrong.
+const ENTITY_SMOOTH_TIME = 0.12;
+// Past this the move wasn't a walk. A charge or a leap is short enough to glide
+// (and looks far better for it); a blink or a teleport crosses the threshold
+// and cuts, which is also where teleport_fx puts its puff of smoke.
+const ENTITY_SNAP_TILES = 6;
+
+interface EntityMotion { x: Damped; y: Damped; seenFrame: number }
+const entityMotion = new Map<string, EntityMotion>();
+let motionFrame = 0;
+
+/** The smoothed draw position of an entity, in tiles. Called for every entity
+ *  every frame, including from the lighting and float-text passes, so that a
+ *  sprite and everything anchored to it move as one. */
+function motionOf(e: { id: string; position: { x: number; y: number } }): EntityMotion {
+  let m = entityMotion.get(e.id);
+  if (!m) {
+    // First sight: start where the entity is rather than sliding in from the
+    // origin of the map.
+    m = { x: { value: e.position.x, velocity: 0 }, y: { value: e.position.y, velocity: 0 }, seenFrame: motionFrame };
+    entityMotion.set(e.id, m);
+  }
+  return m;
+}
+
+/** Advance every visible entity's motion, and forget the ones that left. Runs
+ *  once per frame before anything is drawn, so all the passes that anchor to an
+ *  entity agree on where it is this frame. */
+function stepEntityMotion(entities: readonly EntitySnapshot[], dt: number): void {
+  motionFrame++;
+  let live = 0;
+  for (const e of entities) {
+    // The player rides the camera (see drawX) and never needs a spring of its
+    // own; giving it one would just be a second, disagreeing opinion about
+    // where the middle of the screen is.
+    if (e.id === state.entityId) continue;
+    const m = motionOf(e);
+    m.seenFrame = motionFrame;
+    live++;
+    if (Math.abs(e.position.x - m.x.value) > ENTITY_SNAP_TILES
+        || Math.abs(e.position.y - m.y.value) > ENTITY_SNAP_TILES) {
+      snapDamped(m.x, e.position.x);
+      snapDamped(m.y, e.position.y);
+      continue;
+    }
+    stepDamped(m.x, e.position.x, ENTITY_SMOOTH_TIME, dt);
+    stepDamped(m.y, e.position.y, ENTITY_SMOOTH_TIME, dt);
+  }
+  // Anything not in this frame's entity list is gone (killed, looted, walked
+  // into another chunk). Dropping it here keeps the map from growing for the
+  // life of the session. Compared against the number actually stepped, not
+  // entities.length — the player is skipped above and a projectile can add an
+  // entry for a shooter that has already died.
+  if (entityMotion.size > live) {
+    for (const [id, m] of entityMotion) if (m.seenFrame !== motionFrame) entityMotion.delete(id);
+  }
+}
+
+/** Draw position of an entity in pixels. `self` is special-cased to the camera:
+ *  the camera is already easing toward the player's tile, so giving the player
+ *  its own spring would leave the two disagreeing and the sprite drifting
+ *  around the centre of the screen. Riding the camera's own value keeps the
+ *  player locked to the middle exactly. */
+function drawX(e: { id: string; position: { x: number; y: number } }, offsetX: number): number {
+  return (e.id === state.entityId ? camPos[0].value : motionOf(e).x.value) * TILE + offsetX;
+}
+function drawY(e: { id: string; position: { x: number; y: number } }, offsetY: number): number {
+  return (e.id === state.entityId ? camPos[1].value : motionOf(e).y.value) * TILE + offsetY;
+}
 
 // Zoom. Browser zoom is not a substitute: it rescales the HUD and the DOM
 // panels along with the world, and on a hi-dpi display it resamples the tiles
@@ -4242,38 +4321,33 @@ function render(): void {
   const camTy = self ? self.position.y : Math.floor(height / 2);
 
   // A new zone is a hard cut even when the coordinates happen to be adjacent.
-  if (camZoneRef !== state.zone.id) { camZoneRef = state.zone.id; camReady = false; }
+  if (camZoneRef !== state.zone.id) {
+    camZoneRef = state.zone.id;
+    camReady = false;
+    // A new zone reuses nothing: ids that happen to persist across the move
+    // would otherwise slide their sprite across the whole map to catch up.
+    entityMotion.clear();
+  }
   const camNow = performance.now();
   stepZoom(Math.min(100, camZoomLastMs ? camNow - camZoomLastMs : 16) / 1000);
   camZoomLastMs = camNow;
+  // dt is clamped so a backgrounded tab or a long GC pause resumes smoothly
+  // instead of lurching. Shared with the entity motion below, which has to
+  // advance on the same clock or the player would drift off centre.
+  const motionDt = Math.min(100, camLastMs ? camNow - camLastMs : 16) / 1000;
   if (!camReady
-      || Math.abs(camTx - camX) > CAM_SNAP_TILES
-      || Math.abs(camTy - camY) > CAM_SNAP_TILES) {
-    camX = camTx; camY = camTy; camVx = 0; camVy = 0; camReady = true;
+      || Math.abs(camTx - camPos[0].value) > CAM_SNAP_TILES
+      || Math.abs(camTy - camPos[1].value) > CAM_SNAP_TILES) {
+    snapDamped(camPos[0], camTx);
+    snapDamped(camPos[1], camTy);
+    camReady = true;
   } else {
-    // Critically damped spring (the standard SmoothDamp formulation — the cubic
-    // is a stable rational approximation of e^-x, so it can't overshoot or ring
-    // however large dt gets). Coefficients depend only on dt, so both axes share
-    // one computation. dt is clamped so a backgrounded tab or a long GC pause
-    // resumes smoothly instead of lurching.
-    const dt = Math.min(100, camNow - camLastMs) / 1000;
-    const omega = 2 / CAM_SMOOTH_TIME;
-    const x = omega * dt;
-    const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
-    const chX = camX - camTx;
-    const tmpX = (camVx + omega * chX) * dt;
-    camVx = (camVx - omega * tmpX) * decay;
-    camX = camTx + (chX + tmpX) * decay;
-    const chY = camY - camTy;
-    const tmpY = (camVy + omega * chY) * dt;
-    camVy = (camVy - omega * tmpY) * decay;
-    camY = camTy + (chY + tmpY) * decay;
-    // Settle exactly. Asymptotic approach never quite arrives, which leaves the
-    // camera nudging by sub-pixel amounts forever while standing still.
-    if (Math.abs(camTx - camX) < 0.002 && Math.abs(camVx) < 0.01) { camX = camTx; camVx = 0; }
-    if (Math.abs(camTy - camY) < 0.002 && Math.abs(camVy) < 0.01) { camY = camTy; camVy = 0; }
+    stepDamped(camPos[0], camTx, CAM_SMOOTH_TIME, motionDt);
+    stepDamped(camPos[1], camTy, CAM_SMOOTH_TIME, motionDt);
   }
   camLastMs = camNow;
+  const camX = camPos[0].value, camY = camPos[1].value;
+  stepEntityMotion(entities, motionDt);
 
   const camCx = Math.round(camX);
   const camCy = Math.round(camY);
@@ -4417,8 +4491,8 @@ function render(): void {
     if (state.died && e.id === state.entityId) continue;
     const sprite = e.sprite || (e.type === 'player' ? 'player' : null);
     const color = e.color || (sprite && spriteColors[sprite]) || '#ffffff';
-    const px = e.position.x * TILE + offsetX;
-    const py = e.position.y * TILE + offsetY;
+    const px = drawX(e, offsetX);
+    const py = drawY(e, offsetY);
     if (e.type === 'ground_item') {
       drawGroundItem(px, py, color);
     } else if (e.type === 'corpse') {
@@ -4469,8 +4543,8 @@ function render(): void {
     if (self) {
       punchLight(
         darknessCtx,
-        (self.position.x * TILE + offsetX + TILE / 2) * k,
-        (self.position.y * TILE + offsetY + TILE / 2) * k,
+        (drawX(self, offsetX) + TILE / 2) * k,
+        (drawY(self, offsetY) + TILE / 2) * k,
         3 * TILE * k,
       );
     }
@@ -4480,8 +4554,8 @@ function render(): void {
       if (!lr) continue;
       punchLight(
         darknessCtx,
-        (e.position.x * TILE + offsetX + TILE / 2) * k,
-        (e.position.y * TILE + offsetY + TILE / 2) * k,
+        (drawX(e, offsetX) + TILE / 2) * k,
+        (drawY(e, offsetY) + TILE / 2) * k,
         lr * TILE * k,
       );
     }
@@ -4497,8 +4571,8 @@ function render(): void {
     for (const e of entities) {
       const lr = (e as { lightRadius?: number }).lightRadius;
       if (!lr) continue;
-      const gcx = e.position.x * TILE + offsetX + TILE / 2;
-      const gcy = e.position.y * TILE + offsetY + TILE / 2;
+      const gcx = drawX(e, offsetX) + TILE / 2;
+      const gcy = drawY(e, offsetY) + TILE / 2;
       const gr = lr * TILE * 1.4;
       const gg = ctx.createRadialGradient(gcx, gcy, 0, gcx, gcy, gr);
       gg.addColorStop(0,    'rgba(255, 150, 30, 0.14)');
@@ -4588,8 +4662,8 @@ function render(): void {
     if (!from) continue; // attacker left the zone / died — nothing to draw from
     const dist = chebyshev(from.position.x, from.position.y, ev.at.x, ev.at.y);
     if (dist <= 1) continue; // a melee swing needs no travel
-    const x0 = from.position.x * TILE + offsetX + TILE / 2;
-    const y0 = from.position.y * TILE + offsetY + TILE / 2;
+    const x0 = drawX(from, offsetX) + TILE / 2;
+    const y0 = drawY(from, offsetY) + TILE / 2;
     const x1 = ev.at.x * TILE + offsetX + TILE / 2;
     const y1 = ev.at.y * TILE + offsetY + TILE / 2;
     const p = Math.min(1, age / TRACER_TTL_MS);
@@ -4669,8 +4743,8 @@ function render(): void {
     for (const f of castFailFloats) {
       drawFloatText({
         text: f.text,
-        x: selfForCastFloat.position.x * TILE + offsetX + TILE / 2,
-        y: selfForCastFloat.position.y * TILE + offsetY - 6,
+        x: drawX(selfForCastFloat, offsetX) + TILE / 2,
+        y: drawY(selfForCastFloat, offsetY) - 6,
         t: f.t, ttl: FLOAT_TTL_MS, rise: 14,
         color: '#ff8a4a',
         font: 'bold 13px monospace',
@@ -4699,8 +4773,8 @@ function render(): void {
     if (cur) lines.push(cur);
     const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + padX * 2;
     const h = lines.length * lineH + padY * 2;
-    const cx = ent.position.x * TILE + offsetX + TILE / 2;
-    const cy = ent.position.y * TILE + offsetY - 14;
+    const cx = drawX(ent, offsetX) + TILE / 2;
+    const cy = drawY(ent, offsetY) - 14;
     ctx.globalAlpha = 0.85 * alpha;
     ctx.fillStyle = '#1a1a1a';
     ctx.strokeStyle = '#7acdf5';
@@ -4732,8 +4806,8 @@ function render(): void {
     for (const f of state.pickupFloats) {
       drawFloatText({
         text: f.kind === 'gold' ? `+${f.amount} gold` : `+ ${f.name}`,
-        x: self.position.x * TILE + offsetX + TILE / 2,
-        y: self.position.y * TILE + offsetY - 26,
+        x: drawX(self, offsetX) + TILE / 2,
+        y: drawY(self, offsetY) - 26,
         t: f.t, ttl: PICKUP_FLOAT_TTL_MS, rise: 28,
         color: f.kind === 'gold' ? '#ffd84a' : '#bcd0e0',
         font: 'bold 12px monospace',
@@ -4746,8 +4820,8 @@ function render(): void {
     for (const f of state.xpFloats) {
       drawFloatText({
         text: `+${f.amount} XP`,
-        x: self.position.x * TILE + offsetX + TILE / 2,
-        y: self.position.y * TILE + offsetY - 12,
+        x: drawX(self, offsetX) + TILE / 2,
+        y: drawY(self, offsetY) - 12,
         t: f.t, ttl: XP_FLOAT_TTL_MS, rise: 36,
         color: '#7acdf5',
         font: 'bold 13px monospace',
