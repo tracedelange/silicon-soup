@@ -21,3 +21,13 @@ sprites/out
 # Mob candidate staging output (review + promote by hand)
 forge/out/
 tools/*.log
+
+# Python bytecode from the sprite tooling. sprite_baker's .pyc was tracked,
+# so every bake showed up as a repo modification.
+__pycache__/
+*.pyc
+
+# Style-lab cycles: raw frames, per-style output, contact sheets. Throwaway
+# GPU output, regenerable with sprites/run_cycles.sh. The findings that came
+# out of it are committed at docs/sprite-style-lab.md.
+sprites/experiments

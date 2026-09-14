@@ -1,0 +1,437 @@
+{
+  "sprite_size": 64,
+  "items": {
+    "health_potion": {
+      "hash": "708149b44a46e517",
+      "prompt": {
+        "positive": "small round glass flask with cork stopper, glowing red liquid inside, light-catching glass shine, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/health_potion.png"
+    },
+    "bear_claw": {
+      "hash": "c5900a7a679182a1",
+      "prompt": {
+        "positive": "thick curved bear claw, dark brown fading to bone yellow tip, rough worn surface, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/bear_claw.png"
+    },
+    "scroll_blank": {
+      "hash": "a7571fc45df9c8b6",
+      "prompt": {
+        "positive": "rolled parchment scroll, cream aged paper, twine binding, frayed edges, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/scroll_blank.png"
+    },
+    "mana_potion": {
+      "hash": "f9198a4e7f2fc6b3",
+      "prompt": {
+        "positive": "tall slender glass flask with cork stopper, filled with glowing deep blue luminous liquid, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/mana_potion.png"
+    },
+    "antivenom": {
+      "hash": "b3c72256b31ffef9",
+      "prompt": {
+        "positive": "small glass vial with cork stopper, pale green liquid inside, cloth label tied at neck, wide-shouldered bottle shape, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/antivenom.png"
+    },
+    "potion_of_haste": {
+      "hash": "5094b09b48b37aa7",
+      "prompt": {
+        "positive": "teardrop glass vial with cork stopper, filled with bright swirling yellow liquid, glowing potion, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/potion_of_haste.png"
+    },
+    "deer_skin": {
+      "hash": "6510ed06f6b45e82",
+      "prompt": {
+        "positive": "folded tan leather hide, cream-colored underside, short fur texture, rolled edges, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/deer_skin.png"
+    },
+    "rabbit_fur": {
+      "hash": "a01cab5fd7c4b06b",
+      "prompt": {
+        "positive": "small square of fluffy rabbit fur, brown and white patches, soft texture, loosely folded fabric, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/rabbit_fur.png"
+    },
+    "rat_pelt": {
+      "hash": "a80bc27aa1999f03",
+      "prompt": {
+        "positive": "coarse grey rat hide scrap, ragged torn edges, stiff worn leather, crumpled texture, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/rat_pelt.png"
+    },
+    "rat_tail": {
+      "hash": "a57d4658d1a6b172",
+      "prompt": {
+        "positive": "long thin curved rat tail, pink-grey scaly texture, hook shape, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/rat_tail.png"
+    },
+    "raw_meat": {
+      "hash": "9038b42174ad695b",
+      "prompt": {
+        "positive": "raw red meat chunk with white marbled fat and bone end, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/raw_meat.png"
+    },
+    "squirrel_meat": {
+      "hash": "7c7434e3acccf901",
+      "prompt": {
+        "positive": "two thin strips of dark red raw meat, slightly curled and lean, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/squirrel_meat.png"
+    },
+    "squirrel_tail": {
+      "hash": "244f5fbbf399c811",
+      "prompt": {
+        "positive": "bushy red-brown squirrel tail, thick fur, curved S shape, fluffy texture, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/squirrel_tail.png"
+    },
+    "wolf_pelt": {
+      "hash": "6f98ee46d798893c",
+      "prompt": {
+        "positive": "large folded grey wolf fur pelt, dark guard hairs, thick heavy bundle, coiled leather, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/wolf_pelt.png"
+    },
+    "slime_gel": {
+      "hash": "71bd4489dfcabbfe",
+      "prompt": {
+        "positive": "translucent green jelly blob, rounded glossy shape, soft blobby form, gelatinous texture, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/slime_gel.png"
+    },
+    "slime_ooze": {
+      "hash": "ca934c0f27fe0811",
+      "prompt": {
+        "positive": "thick olive-green ooze blob, glossy gelatinous mass, dripping strands, puddle shape, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/slime_ooze.png"
+    },
+    "scribe_scroll": {
+      "hash": "7e0229ac45db6551",
+      "prompt": {
+        "positive": "tightly rolled cream parchment scroll with red wax seal, curled edges, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/scribe_scroll.png"
+    },
+    "torch": {
+      "hash": "52563e3019e3f9ac",
+      "prompt": {
+        "positive": "wooden torch unlit, short wooden handle, pitch-soaked cloth binding, rough bark texture, dark brown and black, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/torch.png"
+    },
+    "bear_fur": {
+      "hash": "3985c9cca0e041cc",
+      "prompt": {
+        "positive": "thick shaggy brown bear hide, coarse heavy fur bundle, folded textile, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/bear_fur.png"
+    },
+    "giant_rat_fur": {
+      "hash": "8f61b42e4cfe5f36",
+      "prompt": {
+        "positive": "matted coarse fur patch, brown-grey tones, ragged torn edges, shaggy texture, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/giant_rat_fur.png"
+    },
+    "copper_coin": {
+      "hash": "0085f445d15175c4",
+      "prompt": {
+        "positive": "round copper coin, warm reddish-brown metal, stamped emblem, worn rim, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/copper_coin.png"
+    },
+    "gold_coin": {
+      "hash": "138045afc9129dad",
+      "prompt": {
+        "positive": "round gold coin, bright yellow, stamped emblem, milled rim, metallic sheen, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/gold_coin.png"
+    },
+    "common_coin_pouch": {
+      "hash": "1f5e0baacd1db09c",
+      "prompt": {
+        "positive": "plump brown leather pouch with drawstring cord cinched at top, worn rounded bulging shape, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/common_coin_pouch.png"
+    },
+    "bandit_ledger": {
+      "hash": "f80eb70352fed9ce",
+      "prompt": {
+        "positive": "thick leather-bound book with cracked worn cover, cord tie, dog-eared pages, brown tan aged leather, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/bandit_ledger.png"
+    },
+    "brine_glass_lens": {
+      "hash": "48c236acd56a06b7",
+      "prompt": {
+        "positive": "round disc of sea-green glass, polished smooth surface, thick translucent form, salt-crusted rim, crystalline texture, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/brine_glass_lens.png"
+    },
+    "child_trinket": {
+      "hash": "ea47215a68f4bb0a",
+      "prompt": {
+        "positive": "small carved wooden bird pendant, faded paint colors, leather cord, dangling charm, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/child_trinket.png"
+    },
+    "courier_letter": {
+      "hash": "dc5a076d5204bd7e",
+      "prompt": {
+        "positive": "folded parchment letter with broken red wax seal, dark stain on corner, aged paper, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/courier_letter.png"
+    },
+    "giant_rat_claw": {
+      "hash": "01d440334c2c2d00",
+      "prompt": {
+        "positive": "single curved claw, yellow-grey bone, cracked worn tip, thick and substantial, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/giant_rat_claw.png"
+    },
+    "glass_scrap": {
+      "hash": "ef57a057da4f05a3",
+      "prompt": {
+        "positive": "jagged shard of pale blue-green glass, sharp edges, translucent, glowing faintly, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/glass_scrap.png"
+    },
+    "goblin_amulet": {
+      "hash": "138d6670d27e59fc",
+      "prompt": {
+        "positive": "bone amulet on leather cord, spiral carving, green bead accent, cream and brown tones, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/goblin_amulet.png"
+    },
+    "goblin_ear": {
+      "hash": "a4849a1ea2df21fa",
+      "prompt": {
+        "positive": "severed pointed green ear with notched top edge, elfin, trophy item, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/goblin_ear.png"
+    },
+    "guardian_core": {
+      "hash": "fd1883ecc9012e5e",
+      "prompt": {
+        "positive": "faceted crystal sphere glowing pale blue, held in bronze cage, crystalline gem, magical orb, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/guardian_core.png"
+    },
+    "iridescent_shard": {
+      "hash": "3c2437dc028b6da7",
+      "prompt": {
+        "positive": "angular crystal shard, glossy faceted surfaces, violet teal pink iridescent, sharp geometric edges, translucent gem, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/iridescent_shard.png"
+    },
+    "iron_scrap": {
+      "hash": "1a1bf69610cd90f6",
+      "prompt": {
+        "positive": "bent rusted iron plate, pitted orange corrosion, torn ragged end, metal scrap, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/iron_scrap.png"
+    },
+    "mirror_fragment_essence": {
+      "hash": "c8f90cc33aa4f557",
+      "prompt": {
+        "positive": "mirrored glass shard wrapped in silver light, reflective polished surface, luminous glow, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/mirror_fragment_essence.png"
+    },
+    "officers_signet_ring": {
+      "hash": "2b630328442544b3",
+      "prompt": {
+        "positive": "heavy silver ring, flat engraved crest face, tarnished dark band, metallic sheen, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/officers_signet_ring.png"
+    },
+    "prismatic_lens_fragment": {
+      "hash": "5117290a94861ce1",
+      "prompt": {
+        "positive": "curved wedge prism of clear glass, light refracting into faint rainbow spectrum bands, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/prismatic_lens_fragment.png"
+    },
+    "rat_fang": {
+      "hash": "7bd6d81b454c6afa",
+      "prompt": {
+        "positive": "single curved fang, ivory white yellowed tip, dark brown root, narrow pointed tooth, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/rat_fang.png"
+    },
+    "rat_king_crown": {
+      "hash": "f7230a3130a3f7ae",
+      "prompt": {
+        "positive": "twisted grey wire crown with bone accents and dull red stone centerpiece, crude metalwork, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/rat_king_crown.png"
+    },
+    "resonating_glass_shard": {
+      "hash": "37e2edac39b0a91d",
+      "prompt": {
+        "positive": "pale glass shard, luminous cracks, glowing light lines, elongated pointed shape, translucent pale blue, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/resonating_glass_shard.png"
+    },
+    "scavenged_scrap": {
+      "hash": "86852590343cc868",
+      "prompt": {
+        "positive": "crumpled wad of bent scrap metal and torn cloth bound with wire, rusty metallic scraps, tattered fabric strips, improvised salvage, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/scavenged_scrap.png"
+    },
+    "scavenger_bone": {
+      "hash": "724b15d5fd93696c",
+      "prompt": {
+        "positive": "weathered bone pale cracked knobbed ends, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/scavenger_bone.png"
+    },
+    "shipping_manifest": {
+      "hash": "42e39212b0941256",
+      "prompt": {
+        "positive": "aged parchment sheet, water-stained, faded ink columns, curled corners, yellowed paper, worn texture, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/shipping_manifest.png"
+    },
+    "shore_trinket": {
+      "hash": "8f05a9318242f487",
+      "prompt": {
+        "positive": "small spiral seashell, pearlescent pink and blue iridescent inner surface, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/shore_trinket.png"
+    },
+    "slime_sac": {
+      "hash": "19606f1fd5620d15",
+      "prompt": {
+        "positive": "translucent membranous sac filled with pale green fluid, glossy bulging surface, gelatinous potion vial, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/slime_sac.png"
+    },
+    "spider_silk": {
+      "hash": "ba54dde420bf7d77",
+      "prompt": {
+        "positive": "pale grey silk thread wound into loose skein ball, bundled yarn, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/spider_silk.png"
+    },
+    "squirrel_nut": {
+      "hash": "cda0ee18f185ea4d",
+      "prompt": {
+        "positive": "large brown acorn with textured cap, natural seed, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/squirrel_nut.png"
+    },
+    "tattered_hide": {
+      "hash": "a1b804a9985b24bb",
+      "prompt": {
+        "positive": "worn brown leather hide, torn ragged edge, patchy texture, stiff material, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/tattered_hide.png"
+    },
+    "totem_fragment": {
+      "hash": "8c038486d138d355",
+      "prompt": {
+        "positive": "broken dark wood chunk with crude painted face detail, splintered edges, weathered surface, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, full body, scene, landscape, background scenery, multiple objects, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/totem_fragment.png"
+    },
+    "vibrating_shard": {
+      "hash": "60e3d0caeededdd5",
+      "prompt": {
+        "positive": "jagged pale crystal shard, translucent white gem, sharp angular edges, faint motion lines, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/vibrating_shard.png"
+    },
+    "item_sword": {
+      "hash": "764a2f09fb065aa0",
+      "prompt": {
+        "positive": "steel short sword, straight blade, crossguard, leather grip, upright vertical, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/item_sword.png"
+    },
+    "item_armor_light": {
+      "hash": "bd6066b34dbdb078",
+      "prompt": {
+        "positive": "light tan leather cuirass armor with shoulder straps, simple stitching details, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/item_armor_light.png"
+    },
+    "item_scroll": {
+      "hash": "e57f98fada07ca56",
+      "prompt": {
+        "positive": "rolled parchment scroll tied with thin cord at middle, beige and brown, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/item_scroll.png"
+    },
+    "item_misc": {
+      "hash": "59efa717fc98df87",
+      "prompt": {
+        "positive": "small brown fabric drawstring sack, plump rounded pouch, tied neck, game item icon, inventory icon, pixel art, 16-bit RPG, chunky pixels, bold black outline, limited color palette, single object, centered, fills frame, plain background, isolated subject, DCSS style",
+        "negative": "creature, animal, person, character, face, hands, full body, scene, landscape, background scenery, multiple objects, duplicate, blurry, 3d render, photorealistic, text, watermark, anime, soft edges, smooth shading, anti-aliased, drop shadow, gradient background"
+      },
+      "sprite": "../client/public/sprites/item_misc.png"
+    }
+  }
+}

@@ -47,13 +47,38 @@ import random
 import sys
 import time
 
+import numpy as np
 import requests
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter
 from rembg import remove as rembg_remove
+from scipy import ndimage
 
 COMFY_URL   = "http://localhost:8188"
 SPRITE_SIZE = 64
-PALETTE_N   = 24
+
+# The palette every mob and item is quantised onto, vendored into the repo
+# rather than read out of ComfyUI's custom_nodes so a bake does not depend on
+# a path outside it. Chosen by sweeping eight palettes over the same frames
+# (sprites/experiments/palette_sweep.png): the vivid 32-colour sets all wreck
+# earth tones — a brown bear comes out red, mustard or pink — and an adaptive
+# per-image palette gives correct hues but no ramp shared across the set.
+PALETTE     = "apollo"
+SATURATION  = 1.2
+
+# Fraction of the frame a subject's longest side should fill. Overridable per
+# subject via a "scale" key in mobs.json / items.json.
+#
+# Mobs default to 1.0 — i.e. fill the frame, which is what the old maximise-to-
+# 62px behaviour did. Their in-world size is not this sprite's business: the
+# client scales an entity by the template's `draw_scale` at draw time
+# (client/src/game.ts, authored 0.4–2.4 across world/entities/mobs), and every
+# one of those values was tuned against a frame-filling sprite. Shrinking the
+# art here too would multiply with it and silently make every mob small.
+#
+# Items have no such runtime scale — an icon is drawn at a fixed size — so the
+# size hierarchy has to live in the art, and their fractions are authored per
+# item in items.json (see tools/derive_item_scales.py).
+DEFAULT_SCALE = {"mobs": 1.0, "items": 0.8}
 
 HERE        = os.path.dirname(__file__)
 CLIENT_SPRITES = os.path.join(HERE, "..", "client", "public", "sprites")
@@ -65,10 +90,10 @@ Output ONLY valid JSON: { "positive": "...", "negative": "..." }
 
 Rules:
 - Lead positive with silhouette-defining features (body type, dominant form)
-- Always append to positive: pixel art, 16-bit RPG sprite, chunky pixels,
-  bold outlines, limited color palette, simple shapes, full body, full figure,
-  centered, fills frame, single creature, isolated subject, one single pose,
-  single viewpoint, DCSS style
+- Always append to positive: painted fantasy game sprite, rich saturated
+  colour, warm key light and cool bounce light, clear dark outline, chunky
+  simplified forms, bold readable silhouette, full body, full figure, centered,
+  single creature, isolated subject, one single pose, single viewpoint
 - For four-legged animals, specify a side profile view (a clear standing
   silhouette); for humanoids and bipeds, a front view facing the viewer
 - Always include in negative: blurry, 3d render, photorealistic, multiple
@@ -95,10 +120,11 @@ Rules:
 - The subject is a SINGLE inanimate object or trophy (a potion, a sword, a claw,
   a scroll, a gem) shown as an inventory icon — never a creature, person, or scene
 - Lead positive with the object's defining shape and material
-- Always append to positive: game item icon, inventory icon, pixel art,
-  16-bit RPG, chunky pixels, bold black outline, limited color palette,
-  single object, centered, fills frame, plain background, isolated subject,
-  DCSS style
+- Always append to positive: game item icon, inventory icon, flat cel-shaded
+  pixel art, two-tone shading, hard value steps, no gradients, thick black
+  outline, high chroma, saturated local colour, strong rim light, bold
+  readable silhouette, single object, centered, plain background, isolated
+  subject
 - Always include in negative: creature, animal, person, character, face, hands,
   full body, scene, landscape, background scenery, multiple objects, duplicate,
   blurry, 3d render, photorealistic, text, watermark, anime, soft edges,
@@ -176,17 +202,24 @@ Rules:
 # in below (needs functions defined further down the file) — see
 # _register_post_processors.
 KINDS = {
+    # cfg 2.5 vs the item side's 2.0: the painted creature grammar wants a
+    # little more guidance to hold surface detail, where items read cleaner
+    # flatter. Both are far below the old default of 7 — see the tile entry.
     "mob": {
         "out":      os.path.join(HERE, "out"),
         "manifest": os.path.join(HERE, "out", "manifest.json"),
         "system":   MOB_PROMPT_SYSTEM,
         "section":  "mobs",
+        "singleton": "one single full-body creature, solo character portrait",
+        "cfg":       2.5,
     },
     "item": {
         "out":      CLIENT_SPRITES,
         "manifest": os.path.join(HERE, "items_manifest.json"),
         "system":   ITEM_PROMPT_SYSTEM,
         "section":  "items",
+        "singleton": "exactly one object",
+        "cfg":       2.0,
     },
     "tile": {
         "out":      CLIENT_TILES,
@@ -204,6 +237,16 @@ KINDS = {
         "lora_strength":      0.55,
         "palette_max_colors": None,
         "latent_size":        (1024, 1024),
+        # Pinned to the pre-Lightning generation settings. workflow.json now
+        # defaults to the distilled checkpoint at 8 steps / cfg 2.0, which was
+        # measured on creatures and items only; nobody has checked what it does
+        # to a seamless ground texture, and a bad tile is visible across the
+        # whole map. Re-test before adopting it here.
+        "checkpoint": "sd_xl_base_1.0.safetensors",
+        "steps":      24,
+        "cfg":        7.0,
+        "sampler":    "euler_ancestral",
+        "scheduler":  "normal",
     },
     # A fringe IS a ground texture — same full-frame swatch, same graph
     # overrides, same post-processing. Only the prompt system and the manifest
@@ -217,6 +260,16 @@ KINDS = {
         "lora_strength":      0.55,
         "palette_max_colors": None,
         "latent_size":        (1024, 1024),
+        # Pinned to the pre-Lightning generation settings. workflow.json now
+        # defaults to the distilled checkpoint at 8 steps / cfg 2.0, which was
+        # measured on creatures and items only; nobody has checked what it does
+        # to a seamless ground texture, and a bad tile is visible across the
+        # whole map. Re-test before adopting it here.
+        "checkpoint": "sd_xl_base_1.0.safetensors",
+        "steps":      24,
+        "cfg":        7.0,
+        "sampler":    "euler_ancestral",
+        "scheduler":  "normal",
     },
 }
 
@@ -225,7 +278,32 @@ KINDS = {
 # Prompt building
 # ---------------------------------------------------------------------------
 
-def build_prompt(subject: dict, system: str) -> dict:
+# Compositional facts SDXL gets wrong unless they are asserted positively.
+#
+# "How many of these are there" is the big one: `character sheet, multiple
+# views, multiple subjects, duplicate` all sat in the mob negative for months
+# and mobs still came back as six scattered figures. Restating the count as a
+# positive clause fixed it outright — verified by re-baking the two worst
+# offenders (sprites/experiments/probe_portrait). The aspect ratio, long
+# suspected, turned out to be irrelevant.
+#
+# The frame terms are the other half: asking for "plain background" while also
+# demanding the subject fill the frame is contradictory, and the model resolves
+# it by painting a background panel — a copper coin came back mounted on a
+# square plaque, which rembg then cut out as the subject. "fills frame" is gone
+# from both grammars now that scale is handled in post_process.
+ANTI_FRAME_NEG = ("frame, border, plaque, panel, card, inset, ornate surround, "
+                  "background plate, vignette")
+
+
+def enforce_composition(prompt: dict, singleton: str | None) -> dict:
+    if not singleton:
+        return prompt
+    return {"positive": f"{prompt['positive']}, {singleton}",
+            "negative":  f"{prompt['negative']}, {ANTI_FRAME_NEG}"}
+
+
+def build_prompt(subject: dict, system: str, singleton: str | None = None) -> dict:
     client = anthropic.Anthropic()
     msg = client.messages.create(
         model="claude-haiku-4-5",
@@ -240,7 +318,7 @@ def build_prompt(subject: dict, system: str) -> dict:
         if raw.startswith("json"):
             raw = raw[4:]
         raw = raw.strip()
-    return json.loads(raw)
+    return enforce_composition(json.loads(raw), singleton)
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +356,17 @@ def inject_prompt(workflow: dict, prompt: dict, cfg: dict | None = None) -> dict
         # (notably the two-figure "character sheet" layout) across re-runs.
         elif class_type == "KSampler":
             node["inputs"]["seed"] = random.randint(0, 2**63 - 1)
+            for key in ("steps", "cfg"):
+                if cfg.get(key) is not None:
+                    node["inputs"][key] = cfg[key]
+            if cfg.get("sampler"):
+                node["inputs"]["sampler_name"] = cfg["sampler"]
+            # Distilled checkpoints need sgm_uniform; on 'normal' an 8-step run
+            # comes back as noise, so this pairs with any checkpoint override.
+            if cfg.get("scheduler"):
+                node["inputs"]["scheduler"] = cfg["scheduler"]
+        elif class_type == "CheckpointLoaderSimple" and cfg.get("checkpoint"):
+            node["inputs"]["ckpt_name"] = cfg["checkpoint"]
         elif class_type == "LoraLoader" and cfg.get("lora_strength") is not None:
             node["inputs"]["strength_model"] = cfg["lora_strength"]
             node["inputs"]["strength_clip"] = cfg["lora_strength"]
@@ -373,9 +462,29 @@ def remove_background(img: Image.Image) -> Image.Image:
     return rembg_remove(img)
 
 
-# Near-black outline traced around the sprite silhouette for that hand-drawn,
-# DCSS-style read. Computed from the alpha mask so it hugs the actual shape.
-OUTLINE_COLOR = (26, 22, 30, 255)
+_PALETTE_CACHE: dict[str, Image.Image] = {}
+
+
+def load_palette(name: str = PALETTE) -> Image.Image:
+    """Load a palette swatch PNG (one pixel per colour) for Image.quantize."""
+    if name not in _PALETTE_CACHE:
+        path = os.path.join(HERE, "palettes", f"{name}.png")
+        px = np.array(Image.open(path).convert("RGB")).reshape(-1, 3).tolist()
+        colors = list(dict.fromkeys(map(tuple, px)))  # de-dup, keep ramp order
+        pal = Image.new("P", (1, 1))
+        flat = [c for rgb in colors for c in rgb]
+        pal.putpalette(flat + [0] * (768 - len(flat)))
+        pal.info["colors"] = colors
+        _PALETTE_CACHE[name] = pal
+    return _PALETTE_CACHE[name]
+
+
+def outline_color() -> tuple[int, int, int, int]:
+    """The palette's darkest colour, so the outline belongs to the same ramp as
+    the fill rather than fighting it as a foreign near-black."""
+    colors = load_palette().info["colors"]
+    r, g, b = min(colors, key=lambda c: 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2])
+    return (r, g, b, 255)
 
 
 def add_outline(img: Image.Image, thickness: int = 1) -> Image.Image:
@@ -385,29 +494,83 @@ def add_outline(img: Image.Image, thickness: int = 1) -> Image.Image:
     edge    = ImageChops.subtract(dilated, mask)  # ring just outside the shape
 
     out = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    out.paste(Image.new("RGBA", img.size, OUTLINE_COLOR), (0, 0), edge)
+    out.paste(Image.new("RGBA", img.size, outline_color()), (0, 0), edge)
     out.paste(img, (0, 0), img)  # subject on top, keeping its interior
     return out
 
 
-def post_process(img: Image.Image, sprite_id: str, out_dir: str) -> str:
-    """Cut background → fit to square. Returns output path.
+def post_process(img: Image.Image, sprite_id: str, out_dir: str,
+                 scale: float | None = None, section: str = "items") -> str:
+    """Raw ComfyUI frame → finished 64px sprite. Returns output path.
 
-    The image arrives already grid-clean and palette-reduced from the
-    PixelArtDetector node, so no downsample/quantize is needed here — we just
-    drop the background and center it in a square SPRITE_SIZE frame.
+    The ordering here is load-bearing, and getting it wrong is what made every
+    sprite baked before Sept 2026 look like a filtered photo rather than pixel
+    art.
+
+    `remove_background` is rembg, a photo-matting model. Measured on a clean
+    21-colour input it returns **465 colours and a 250-value soft alpha**. So
+    the 20-colour reduction the ComfyUI graph already did does not survive this
+    step, and an earlier version of this function assumed it did — it said the
+    image "arrives already palette-reduced, so no quantize is needed here",
+    which was true on arrival and false by the time it was saved. Hence the
+    halos, the 100+ colour sprites, and the module-level PALETTE_N that nothing
+    referenced.
+
+    Every colour and geometry decision therefore happens *after* matting.
     """
-    img = remove_background(img.convert("RGB"))  # RGBA
+    rgba = remove_background(img.convert("RGB"))
 
-    # Fit into a square SPRITE_SIZE canvas preserving aspect ratio (NEAREST so
-    # the clean pixels stay crisp), centered. Leave a 1px margin so the outline
-    # pass below never clips at the frame edge.
-    fit = SPRITE_SIZE - 2
-    img.thumbnail((fit, fit), Image.NEAREST)
+    # 1. Harden the matte. A pixel is in or out; partial alpha is what reads as
+    #    a halo once the sprite sits on a tile background.
+    a = np.array(rgba)
+    hard = a[..., 3] >= 128
+    if not hard.any():
+        raise ValueError(f"{sprite_id}: nothing survived background removal")
+
+    # 2. One subject. rembg keeps every blob it reads as foreground, so a coin
+    #    arrives with a stray lump beside it and a mis-composed character sheet
+    #    arrives as six figures that then scale down together into confetti.
+    lbl, n = ndimage.label(hard)
+    if n > 1:
+        sizes = ndimage.sum(hard, lbl, range(1, n + 1))
+        hard = lbl == int(np.argmax(sizes)) + 1
+        if sizes.max() / sizes.sum() < 0.5:
+            print(f"  WARNING {sprite_id}: largest blob is only "
+                  f"{100 * sizes.max() / sizes.sum():.0f}% of the ink — "
+                  f"the frame is probably a multi-figure mis-gen")
+
+    # 3. Colour, at generation resolution — lifting saturation after the
+    #    downsample only amplifies what the resample averaged together.
+    rgb = ImageEnhance.Color(Image.fromarray(a[..., :3])).enhance(SATURATION)
+
+    # 4. Quantise to a fixed authored palette. An adaptive per-image palette
+    #    gives correct hues but no shared ramp, so a set of 90 sprites never
+    #    coheres; apollo was chosen over seven alternatives because it is the
+    #    only one that keeps earth tones honest (endesga-32 turns a brown bear
+    #    red) while still reading as a designed palette.
+    rgb = rgb.quantize(palette=load_palette(), dither=Image.NONE).convert("RGB")
+
+    sprite = Image.fromarray(
+        np.dstack([np.array(rgb), (hard * 255).astype(np.uint8)]), "RGBA")
+
+    # 5. Crop to the subject before scaling, so the scale class describes the
+    #    subject rather than however much empty space the model left around it.
+    bb = sprite.getbbox()
+    if bb:
+        sprite = sprite.crop(bb)
+
+    # 6. Scale to this subject's share of the frame instead of maximising.
+    #    Maximising is why a copper coin and a bear hide used to occupy the
+    #    same 62px on the inventory grid.
+    frac = scale if scale is not None else DEFAULT_SCALE[section]
+    target = max(4, int(round((SPRITE_SIZE - 2) * frac)))
+    k = target / max(sprite.size)
+    sprite = sprite.resize((max(1, round(sprite.width * k)),
+                            max(1, round(sprite.height * k))), Image.NEAREST)
+
     canvas = Image.new("RGBA", (SPRITE_SIZE, SPRITE_SIZE), (0, 0, 0, 0))
-    canvas.paste(img, ((SPRITE_SIZE - img.width) // 2,
-                       (SPRITE_SIZE - img.height) // 2))
-
+    canvas.paste(sprite, ((SPRITE_SIZE - sprite.width) // 2,
+                          (SPRITE_SIZE - sprite.height) // 2))
     canvas = add_outline(canvas)
 
     os.makedirs(out_dir, exist_ok=True)
@@ -489,7 +652,7 @@ def bake(subject: dict, manifest: dict, cfg: dict, force: bool = False) -> bool:
         return False
 
     print(f"  building prompt for {sub_id}...")
-    prompt = build_prompt(subject, cfg["system"])
+    prompt = build_prompt(subject, cfg["system"], cfg.get("singleton"))
     print(f"  positive: {prompt['positive']}")
     print(f"  negative: {prompt['negative']}")
 
@@ -505,7 +668,13 @@ def bake(subject: dict, manifest: dict, cfg: dict, force: bool = False) -> bool:
     img = fetch_comfy_image(image_info)
 
     print(f"  post-processing...")
-    out_path = cfg["post_process"](img, sub_id, cfg["out"])
+    # Only mob/item post_process takes a scale class; a tile is the whole frame
+    # by definition, so post_process_tile has nothing to scale within it.
+    if cfg.get("singleton"):
+        out_path = cfg["post_process"](img, sub_id, cfg["out"],
+                                       subject.get("scale"), section)
+    else:
+        out_path = cfg["post_process"](img, sub_id, cfg["out"])
 
     manifest[section][sub_id] = {
         "hash":   new_hash,

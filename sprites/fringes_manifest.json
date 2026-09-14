@@ -1,0 +1,13 @@
+{
+  "sprite_size": 64,
+  "fringes": {
+    "grass_fringe": {
+      "hash": "977c6a0d40d7b7d3",
+      "prompt": {
+        "positive": "dense dark green grass turf rim, crowded fine blade tips, slightly deeper richer tone than open grass, low contrast, no soil visible, seamless tileable texture, top-down view, flat even lighting, no shadows, no vignette, no border, fills entire frame, edge-to-edge, soft muted color, smooth color blending, subtle texture, pixel art, 16-bit RPG tileset, limited color palette",
+        "negative": "object, item, character, creature, person, isolated subject, two materials, boundary line, transition, edge, seam, border, frame, vignette, drop shadow, perspective angle, 3d render, photorealistic, text, watermark, gradient, high contrast, bold outline, chunky pixels, dense speckle pattern, dot pattern, busy detail, noisy texture, checkerboard pattern, moire pattern, soil showing"
+      },
+      "sprite": "../client/public/tiles/grass_fringe.png"
+    }
+  }
+}

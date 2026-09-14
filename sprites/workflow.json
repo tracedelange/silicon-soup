@@ -1,7 +1,7 @@
 {
   "1": {
     "inputs": {
-      "ckpt_name": "sd_xl_base_1.0.safetensors"
+      "ckpt_name": "dreamshaperXL_lightningDPMSDE.safetensors"
     },
     "class_type": "CheckpointLoaderSimple",
     "_meta": {
@@ -43,8 +43,8 @@
   },
   "8": {
     "inputs": {
-      "width": 832,
-      "height": 1216,
+      "width": 768,
+      "height": 768,
       "batch_size": 1
     },
     "class_type": "EmptyLatentImage",
@@ -55,10 +55,10 @@
   "5": {
     "inputs": {
       "seed": 953345952342682,
-      "steps": 24,
-      "cfg": 7,
-      "sampler_name": "euler_ancestral",
-      "scheduler": "normal",
+      "steps": 8,
+      "cfg": 2.0,
+      "sampler_name": "dpmpp_sde",
+      "scheduler": "sgm_uniform",
       "denoise": 1,
       "model": ["9", 0],
       "positive": ["3", 0],
@@ -84,7 +84,7 @@
     "inputs": {
       "images": ["6", 0],
       "reduce_palette": true,
-      "reduce_palette_max_colors": 20
+      "reduce_palette_max_colors": 24
     },
     "class_type": "PixelArtDetectorToImage",
     "_meta": {

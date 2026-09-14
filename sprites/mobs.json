@@ -1,5 +1,25 @@
 [
   {
+    "id": "acid_ooze_01",
+    "description": "A translucent yellow-green ooze, a slow-shifting amorphous blob pocked with bubbling acidic blisters and faint corrosive vapor rising off its surface. No visible face or limbs."
+  },
+  {
+    "id": "apothecary_01",
+    "description": "A thin stooped herbalist in a long dark green robe with a hood pushed back, spectacles, grey hair, and a bandolier of small corked vials across the chest."
+  },
+  {
+    "id": "armorer_01",
+    "description": "A stocky armorer in a mail shirt under a studded leather apron, heavy bracers, short grey beard, holding a dented breastplate."
+  },
+  {
+    "id": "bandit_archer_01",
+    "description": "A lean human bandit in dark leather armor and a hooded cloak, a recurve bow slung across the back and a quiver of arrows at the hip, sharp watchful eyes."
+  },
+  {
+    "id": "barkeep",
+    "description": "A stout middle-aged man in a leather apron, rolled sleeves, ruddy cheeks, and a friendly but tired expression. Holding a rag."
+  },
+  {
     "id": "bear",
     "description": "A large, hulking brown bear with thick fur, rounded ears, heavy claws, and a broad snout. Muscular and imposing."
   },
@@ -8,84 +28,28 @@
     "description": "A pale eight-legged spider the size of a cat, with long hairy legs, two large fangs, and multiple glossy black eyes."
   },
   {
-    "id": "deer",
-    "description": "A tan deer standing in side profile, full body, a clear deer silhouette: arched neck, small head with large ears, four slim legs, and a short white tail. Gentle and alert."
-  },
-  {
-    "id": "rabbit",
-    "description": "A small brown rabbit with long upright ears, a round fluffy body, short front legs, and a white cotton tail."
-  },
-  {
-    "id": "squirrel",
-    "description": "A small reddish-brown squirrel with a large bushy tail curled over its back, bright eyes, and tiny paws clutching a nut."
-  },
-  {
-    "id": "barkeep",
-    "description": "A stout middle-aged man in a leather apron, rolled sleeves, ruddy cheeks, and a friendly but tired expression. Holding a rag."
-  },
-  {
-    "id": "villager",
-    "description": "A plain peasant in rough linen clothes and a simple tunic, weathered face, carrying a basket. Unremarkable but sturdy."
-  },
-  {
-    "id": "militia_man",
-    "description": "A stocky soldier in padded leather armor with a short sword at his hip, a round helmet, and a watchful stern expression."
-  },
-  {
-    "id": "trapper",
-    "description": "A lean outdoorsman in a fur-trimmed cloak and worn leather vest, weathered face, with a coil of rope over one shoulder."
-  },
-  {
     "id": "child",
     "description": "A small child in simple peasant clothes, wide curious eyes, short stature, and tousled hair. Looks slightly worried."
   },
   {
-    "id": "npc_zone_0_0_elder",
-    "description": "A frail elderly man with a long white beard, deep-set wise eyes, a wooden staff, and simple robes. Calm and authoritative."
+    "id": "deer",
+    "description": "A tan deer standing in side profile, full body, a clear deer silhouette: arched neck, small head with large ears, four slim legs, and a short white tail. Gentle and alert."
   },
   {
-    "id": "tavern_patron",
-    "description": "A rosy-cheeked man in a loose tunic, holding a tankard, slightly slouched on a stool. Cheerful and a bit disheveled."
+    "id": "ember_wisp_01",
+    "description": "A small hovering wisp of living flame, a flickering ember-orange core wreathed in drifting smoke and sparks, no limbs, casting a warm orange glow."
   },
   {
     "id": "fighter_trainer",
     "description": "A burly weapons master in worn plate and a leather harness, a greatsword strapped to his back, scarred arms crossed, stern and confident."
   },
   {
-    "id": "rogue_trainer",
-    "description": "A lean hooded figure in dark leathers, a dagger at each hip, half-shadowed face with a sly knowing smirk. Light on her feet."
-  },
-  {
-    "id": "wizard_trainer",
-    "description": "An aged hedge magus in patched blue robes, a pointed hat, a gnarled staff topped with a faint glowing crystal, and a long grey beard."
+    "id": "general_goods_01",
+    "description": "A tidy shopkeeper in a brown vest over a striped shirt, a coin pouch at the belt, hands clasped, with a friendly attentive expression."
   },
   {
     "id": "giant_rat",
     "description": "An oversized mangy rat the size of a dog, with matted grey-brown fur, yellowed buckteeth, beady red eyes, and a long scaly tail."
-  },
-  {
-    "id": "practice_dummy",
-    "description": "A straw-stuffed training dummy on a wooden post, burlap head, painted target rings on its chest, slumped and battered from use."
-  },
-  {
-    "id": "torch",
-    "description": "A wooden wall torch with a wrapped pitch-soaked head burning a bright orange flame, casting warm light. A simple fixture."
-  },
-  {
-    "id": "village_board",
-    "description": "A wooden notice board on a single post. A village fixture."
-  },
-  {
-    "id": "acid_ooze_01",
-    "description": "A translucent yellow-green ooze, a slow-shifting amorphous blob pocked with bubbling acidic blisters and faint corrosive vapor rising off its surface. No visible face or limbs."
-  },
-  {
-    "id": "bandit_archer_01",
-    "description": "A lean human bandit in dark leather armor and a hooded cloak, a recurve bow slung across the back and a quiver of arrows at the hip, sharp watchful eyes."
-  },
-  {
-    "id": "ember_wisp_01",
-    "description": "A small hovering wisp of living flame, a flickering ember-orange core wreathed in drifting smoke and sparks, no limbs, casting a warm orange glow."
   },
   {
     "id": "goblin_01",
@@ -108,16 +72,72 @@
     "description": "A gaunt undead warden in corroded ceremonial armor, hollow glowing eye sockets, tattered burial cloth draped over rusted plate, radiating a faint unholy light."
   },
   {
+    "id": "militia_man",
+    "description": "A stocky soldier in padded leather armor with a short sword at his hip, a round helmet, and a watchful stern expression."
+  },
+  {
+    "id": "npc_zone_0_0_elder",
+    "description": "A frail elderly man with a long white beard, deep-set wise eyes, a wooden staff, and simple robes. Calm and authoritative."
+  },
+  {
+    "id": "practice_dummy",
+    "description": "A straw-stuffed training dummy on a wooden post, burlap head, painted target rings on its chest, slumped and battered from use."
+  },
+  {
+    "id": "provisioner_01",
+    "description": "A round cheerful shopkeeper in a linen shirt and a canvas apron, sleeves rolled, a strap of pouches across the chest, holding a wrapped bundle of goods."
+  },
+  {
+    "id": "rabbit",
+    "description": "A small brown rabbit with long upright ears, a round fluffy body, short front legs, and a white cotton tail."
+  },
+  {
+    "id": "rogue_trainer",
+    "description": "A lean hooded figure in dark leathers, a dagger at each hip, half-shadowed face with a sly knowing smirk. Light on her feet."
+  },
+  {
     "id": "spider_01",
     "description": "A large frost-blue spider with long frost-rimed legs, glassy icy eyes, and a faint chill mist clinging to its segmented body — bigger and icier than the common cave spider."
+  },
+  {
+    "id": "squirrel",
+    "description": "A small reddish-brown squirrel with a large bushy tail curled over its back, bright eyes, and tiny paws clutching a nut."
   },
   {
     "id": "swamp_slime_01",
     "description": "A murky brown-green ooze dripping with swamp muck, its gelatinous body studded with drifting spore pods and embedded bog debris."
   },
   {
+    "id": "tavern_patron",
+    "description": "A rosy-cheeked man in a loose tunic, holding a tankard, slightly slouched on a stool. Cheerful and a bit disheveled."
+  },
+  {
+    "id": "torch_01",
+    "description": "A wooden wall torch with a wrapped pitch-soaked head burning a bright orange flame, casting warm light. A simple fixture."
+  },
+  {
+    "id": "trapper",
+    "description": "A lean outdoorsman in a fur-trimmed cloak and worn leather vest, weathered face, with a coil of rope over one shoulder."
+  },
+  {
+    "id": "village_board",
+    "description": "A wooden notice board on a single post. A village fixture."
+  },
+  {
+    "id": "villager",
+    "description": "A plain peasant in rough linen clothes and a simple tunic, weathered face, carrying a basket. Unremarkable but sturdy."
+  },
+  {
     "id": "warden_01",
     "description": "A robed human warden in reinforced leather and chainmail, a ceremonial banner-topped staff in hand, calm authoritative bearing, a protector's stance."
+  },
+  {
+    "id": "weaponsmith_01",
+    "description": "A broad-shouldered smith in a heavy scorched leather apron over bare arms, thick gloves, close-cropped beard, holding a hammer at the side."
+  },
+  {
+    "id": "wizard_trainer",
+    "description": "An aged hedge magus in patched blue robes, a pointed hat, a gnarled staff topped with a faint glowing crystal, and a long grey beard."
   },
   {
     "id": "wolf_01",
