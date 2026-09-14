@@ -90,6 +90,33 @@ export function rampFor(material: string | undefined): Ramp {
   return (material && MATERIAL_VISUALS[material]?.ramp) || FALLBACK_RAMP;
 }
 
+/**
+ * Hand-authored bases (world/entities/items/bases/) adopted into a sprite
+ * group. Art is keyed off `<material>_<archetype>`, and an id like `warhammer`
+ * or `mirror_shard_weapon` has nothing to key on — it would draw as nothing at
+ * all, forever, however many overlays get drawn.
+ *
+ * A row here says "this item is that shape, in that material": the value is
+ * read exactly as a composed base id would be, so it picks up the drawing and
+ * the ramp together. Aliasing costs no art and changes no stats — a Rusty
+ * Dagger is still its own item, it just borrows the dagger's silhouette and
+ * crude's browns rather than going unrendered.
+ */
+export const BASE_VISUAL_ALIASES: Record<string, string> = {
+  // starter weapons, predating the material x archetype cross-product
+  dagger: 'crude_dagger',
+  sword: 'crude_sword',
+  warhammer: 'iron_maul',
+  rusty_dagger: 'crude_dagger',
+  sword_of_heros: 'runed_sword',
+  // the glass line: shard weapons read as blue-steel, which is tempered's ramp
+  mirror_shard_weapon: 'tempered_dagger',
+  reinforced_glass_shard: 'tempered_knife',
+  // no overlay drawn for either shape yet; the row is what lets one land
+  padded_vest: 'ragged_chest',
+  travelers_amulet: 'copper_amulet',
+};
+
 /** One overlay to composite over the body. `layer` is the basename of the
  *  grayscale PNG in client/public/gear/. */
 export interface GearVisual {
@@ -151,12 +178,14 @@ export interface VisualSource {
  * works for an item sitting in a bag that isn't equipped anywhere.
  */
 export function itemVisual(stack: VisualSource | null | undefined): GearVisual | null {
-  const parsed = parseBaseId(stack?.base);
+  const base = stack?.base;
+  const parsed = parseBaseId((base && BASE_VISUAL_ALIASES[base]) || base);
   // A known material is the signal that this id is a composed base and not a
   // hand-authored one from world/entities/items/bases/ that merely happens to
   // contain an underscore (`health_potion`, `bandit_ledger`). Hand-authored
-  // *weapons* that do start with a material (`crude_knife`) fall through on
-  // purpose: they render the moment someone draws `knife.png`, and skip until.
+  // *gear* either leads with a material already (`crude_knife`) or is adopted
+  // into a group by BASE_VISUAL_ALIASES above; everything else has no art to
+  // resolve and shouldn't pretend otherwise.
   if (!parsed || !MATERIAL_VISUALS[parsed.material]) return null;
   const eq = stack?.item?.components?.equipment;
   const rarity = eq?.rarity as string | undefined;

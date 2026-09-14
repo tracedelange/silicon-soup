@@ -46,6 +46,13 @@ missing file simply doesn't draw.
 | armor | `helmet.png` `chest.png` `gloves.png` `leggings.png` `boots.png` | the archetype id, which for armor is also the slot |
 | armor variant | `<slot>_cloth.png` | the material's `class` in `materials.yaml` |
 
+A hand-authored base in `world/entities/items/bases/` only lands in a group if
+its id happens to read as `<material>_<archetype>` (`crude_knife` does). One
+that doesn't — `warhammer`, `mirror_shard_weapon` — claims a group by a row in
+`BASE_VISUAL_ALIASES` in `shared/itemVisuals.ts`, naming the composed base whose
+shape and ramp it borrows. `npm run sprite-coverage` lists anything still
+unclaimed, and a unit test fails until the list is empty.
+
 One silhouette per armor slot, and within a class the material is only a ramp:
 a Steel Chest and a Studded Chest are the same drawing. A **material class** can
 ask for a shape of its own, though — cloth does, because a robe is not a
@@ -63,8 +70,10 @@ Rings and amulets are deliberately not drawn — a handful of pixels at on-scree
 scale reads as noise, so they stay inventory-only.
 
 The armor is a first pass: it reads as a suit and lines up with the pose, but
-each piece is a plain silhouette with one specular hit. `sword.png` is a
-placeholder good enough to prove the pipeline; replace it.
+each piece is a plain silhouette with one specular hit. `sword.png` and
+`dagger.png` are the originals and still read as placeholders; the rest of the
+weapons (`axe` `mace` `maul` `greatsword` `knife` `staff`) share a grip at
+columns 44-49 so they hang off the hand the same way.
 
 Pieces are drawn against each other, not just against the body: the chest's
 sleeve ends where the gauntlet cuff starts (row 34), the leggings' hem (row 54)
