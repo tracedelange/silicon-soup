@@ -1,6 +1,7 @@
 id: dire_howler
 name: Dire Howler
 sprite: wolf_01
+sprite_facing: west
 draw_scale: 2.2
 level: 20
 level_range: [15, 28]

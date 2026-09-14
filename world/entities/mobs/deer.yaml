@@ -1,6 +1,7 @@
 id: deer
 name: Deer
 sprite: deer
+sprite_facing: west
 level: 1
 level_range: [1, 8]
 role: passive

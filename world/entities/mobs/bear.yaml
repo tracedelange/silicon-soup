@@ -1,6 +1,7 @@
 id: bear
 name: Bear
 sprite: bear
+sprite_facing: west
 level: 5
 level_range: [4, 15]
 role: tank

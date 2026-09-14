@@ -57,6 +57,7 @@ Optional fields:
 - `board_id: <stable_key>` — player-writable message board (persists in DB).
 - `light_radius: <tiles>` — emits a glow in the night overlay (torches, bonfires).
 - `draw_scale: 0..1` — render size as fraction of a tile (default ~0.75; torches use 0.35).
+- `sprite_facing: east | west` — which way the sprite's art looks, for side-profile art (most four-legged animals; see `bear.yaml`). The client mirrors the sprite when the mob walks the other way. Leave it unset for art that faces the viewer — flipping a front view only flips its asymmetries.
 - `respawn_seconds: <n>` — override respawn delay (also settable per-spawn in the zone).
 - `stats: { strength?, dexterity?, intelligence?, constitution? }` — override individual derived stats.
 - `armor: <n>` — flat armor; otherwise defense is derived from constitution.

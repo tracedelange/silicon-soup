@@ -3925,7 +3925,17 @@ function drawTileLayer(
   ctx.drawImage(getMaskedTile(spriteId, mask, img), px, py, TILE, TILE);
 }
 
-function drawEntity(px: number, py: number, color: string, scale?: number, spriteId?: string | null): void {
+/** True when a side-profile mob is walking against the way its art looks. North
+ *  and south leave it alone: there is no back view to turn to, and flipping on
+ *  every vertical step would just make it twitch. */
+function facesAwayFromSprite(e: EntitySnapshot): boolean {
+  if (!e.spriteFacing) return false;
+  return e.facing === (e.spriteFacing === 'east' ? 'west' : 'east');
+}
+
+function drawEntity(
+  px: number, py: number, color: string, scale?: number, spriteId?: string | null, mirror = false,
+): void {
   const img = spriteId ? getSpriteImage(spriteId) : null;
   // A manual draw_scale always wins. Otherwise default to 1.2 with an image,
   // or 1 for the placeholder box (no image).
@@ -3935,7 +3945,15 @@ function drawEntity(px: number, py: number, color: string, scale?: number, sprit
     ctx.imageSmoothingEnabled = false;
     ctx.shadowColor = 'rgba(0,0,0,0.6)';
     ctx.shadowBlur = 4;
-    ctx.drawImage(img, px + margin, py + margin, size, size);
+    if (mirror) {
+      ctx.save();
+      ctx.translate(px + margin + size, py + margin);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, size, size);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, px + margin, py + margin, size, size);
+    }
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
   } else {
@@ -4683,7 +4701,7 @@ function render(): void {
     } else {
       if (e.id === selectedTargetId) drawTargetHighlight(px, py, !!e.npc);
       if (e.type === 'player') drawPlayerSprite(px, py, e);
-      else drawEntity(px, py, color, (e as { drawScale?: number }).drawScale, sprite);
+      else drawEntity(px, py, color, e.drawScale, sprite, facesAwayFromSprite(e));
       const hp = (e.components as { health?: { current: number; max: number } })?.health;
       if (hp && !e.fixture) drawHpBar(px, py, hp.current, hp.max);
       const modifiers = (e.components as { modifiers?: TimedModifier[] })?.modifiers;

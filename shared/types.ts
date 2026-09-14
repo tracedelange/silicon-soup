@@ -322,8 +322,11 @@ export interface EntitySnapshot {
   spawnId?: string;
   // For players: custom hex color chosen at character creation.
   color?: string;
-  // For players: last movement direction, used to mirror the sprite.
+  // For players and mobs: last movement direction, used to mirror the sprite.
   facing?: Direction;
+  // For mobs whose art is a side profile: which way that profile looks. The
+  // client mirrors the sprite when `facing` is the opposite cardinal.
+  spriteFacing?: 'east' | 'west';
   // For merchant mobs: true when the mob's template has a shop array.
   hasShop?: boolean;
   // For class-trainer mobs: the class whose abilities this trainer teaches.
@@ -556,6 +559,12 @@ export interface MobTemplate {
   light_radius?: number;
   /** Fraction of a tile to render the entity square at (1 = full tile, 0.75 = default margin). */
   draw_scale?: number;
+  /** Which way this mob's art looks, for sprites drawn in side profile (most
+   *  four-legged animals). Set it and the client mirrors the sprite when the mob
+   *  walks the other way, the way the player's paper-doll already does. Leave it
+   *  unset for art that faces the viewer — mirroring a front view does nothing
+   *  but flip its asymmetries. */
+  sprite_facing?: 'east' | 'west';
   respawn_seconds?: number;
   /** Override individual stats; unset fields fall back to role-derived values. */
   stats?: Partial<{ strength: number; dexterity: number; intelligence: number; constitution: number }>;
